@@ -1,0 +1,154 @@
+@import "tailwindcss";
+@config "../tailwind.config.ts";
+
+@layer base {
+  * {
+    border-color: #E5E7EB;
+  }
+
+  body {
+    background-color: #F4F5F7;
+    color: #1A1A2E;
+    font-family: var(--font-inter), system-ui, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .kpi-card {
+    background-color: #FFFFFF;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+  }
+  
+  .kpi-card:hover {
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  }
+
+  .btn-primary {
+    background-color: #FF5733;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+  }
+  
+  .btn-primary:hover {
+    opacity: 0.9;
+  }
+
+  .btn-secondary {
+    background-color: #FFFFFF;
+    border: 1px solid #E5E7EB;
+    color: #1A1A2E;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+  }
+  
+  .btn-secondary:hover {
+    background-color: #F9FAFB;
+  }
+
+  .btn-ghost {
+    background-color: transparent;
+    color: #FF5733;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+  }
+  
+  .btn-ghost:hover {
+    background-color: #FFE8E3;
+  }
+
+  .btn-danger {
+    background-color: #FEE2E2;
+    color: #EF4444;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+  }
+  
+  .btn-danger:hover {
+    background-color: #FECACA;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.625rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+
+  .badge-success {
+    background-color: #D1FAE5;
+    color: #065F46;
+  }
+
+  .badge-warning {
+    background-color: #FEF3C7;
+    color: #92400E;
+  }
+
+  .badge-error {
+    background-color: #FEE2E2;
+    color: #991B1B;
+  }
+
+  .badge-draft {
+    background-color: #F3F4F6;
+    color: #374151;
+  }
+
+  .badge-accepted {
+    background-color: #DBEAFE;
+    color: #1E40AF;
+  }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    color: #6B7280;
+  }
+  
+  .sidebar-item:hover {
+    background-color: #F9FAFB;
+    cursor: pointer;
+  }
+
+  .sidebar-item-active {
+    background-color: #FFE8E3;
+    color: #FF5733;
+    border-left: 3px solid #FF5733;
+    font-weight: 500;
+  }
+
+  .input-field {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+  }
+  
+  .input-field:focus {
+    outline: none;
+    @apply ring-2 ring-primary;
+    border-color: transparent;
+    transition: all 0.2s ease;
+  }
+
+  .card-container {
+    background-color: #FFFFFF;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    padding: 1.5rem;
+  }
+}
