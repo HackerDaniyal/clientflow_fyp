@@ -17,14 +17,17 @@
 @layer components {
   .kpi-card {
     background-color: #FFFFFF;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-    padding: 1.5rem;
-    transition: all 0.3s ease;
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03);
+    padding: 1.25rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(229, 231, 235, 0.5);
   }
   
   .kpi-card:hover {
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.06);
+    transform: translateY(-1px);
+    border-color: #E5E7EB;
   }
 
   .btn-primary {
@@ -114,21 +117,27 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 8px;
-    color: #6B7280;
+    padding: 0.625rem 0.875rem;
+    border-radius: 10px;
+    color: #64748b;
+    transition: all 0.2s ease;
+    margin: 0.125rem 0;
   }
   
   .sidebar-item:hover {
-    background-color: #F9FAFB;
+    background-color: #f1f5f9;
+    color: #1e293b;
     cursor: pointer;
   }
 
   .sidebar-item-active {
-    background-color: #FFE8E3;
+    background-color: #fff1f0;
     color: #FF5733;
-    border-left: 3px solid #FF5733;
-    font-weight: 500;
+    font-weight: 600;
+  }
+
+  .sidebar-item-active svg {
+    color: #FF5733 !important;
   }
 
   .input-field {
@@ -147,8 +156,9 @@
 
   .card-container {
     background-color: #FFFFFF;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03);
     padding: 1.5rem;
+    border: 1px solid rgba(229, 231, 235, 0.5);
   }
 }

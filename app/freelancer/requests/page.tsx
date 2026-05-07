@@ -121,54 +121,54 @@ export default function RequestsPage() {
       </Card>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Clock className="w-5 h-5 text-yellow-600" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
+        <Card className="kpi-card">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center border border-amber-100 flex-shrink-0">
+              <Clock className="w-5 h-5 text-amber-600" />
             </div>
-            <div>
-              <p className="text-sm text-text-secondary">Pending</p>
-              <p className="text-2xl font-bold text-text-primary">
+            <div className="min-w-0">
+              <p className="text-[12px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Pending</p>
+              <p className="text-2xl font-bold text-slate-900 leading-none">
                 {requests.filter((r) => r.status === "pending").length}
               </p>
             </div>
           </div>
         </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle className="w-5 h-5 text-green-600" />
+        <Card className="kpi-card">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center border border-emerald-100 flex-shrink-0">
+              <CheckCircle className="w-5 h-5 text-emerald-600" />
             </div>
-            <div>
-              <p className="text-sm text-text-secondary">Accepted</p>
-              <p className="text-2xl font-bold text-text-primary">
+            <div className="min-w-0">
+              <p className="text-[12px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Accepted</p>
+              <p className="text-2xl font-bold text-slate-900 leading-none">
                 {requests.filter((r) => r.status === "accepted").length}
               </p>
             </div>
           </div>
         </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <XCircle className="w-5 h-5 text-red-600" />
+        <Card className="kpi-card">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center border border-rose-100 flex-shrink-0">
+              <XCircle className="w-5 h-5 text-rose-600" />
             </div>
-            <div>
-              <p className="text-sm text-text-secondary">Declined</p>
-              <p className="text-2xl font-bold text-text-primary">
+            <div className="min-w-0">
+              <p className="text-[12px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Declined</p>
+              <p className="text-2xl font-bold text-slate-900 leading-none">
                 {requests.filter((r) => r.status === "declined").length}
               </p>
             </div>
           </div>
         </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
+        <Card className="kpi-card">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center border border-blue-100 flex-shrink-0">
               <MessageCircle className="w-5 h-5 text-blue-600" />
             </div>
-            <div>
-              <p className="text-sm text-text-secondary">Info Requested</p>
-              <p className="text-2xl font-bold text-text-primary">
+            <div className="min-w-0">
+              <p className="text-[12px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Info Requested</p>
+              <p className="text-2xl font-bold text-slate-900 leading-none">
                 {requests.filter((r) => r.status === "info_requested").length}
               </p>
             </div>
@@ -179,89 +179,89 @@ export default function RequestsPage() {
       {/* Request Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {filteredRequests.map((request) => (
-          <Card key={request.id} className="p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-text-primary mb-1">
+          <Card key={request.id} className="card-container hover:shadow-lg transition-all group border-slate-200">
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex-1 min-w-0 pr-4">
+                <h3 className="text-lg font-bold text-slate-900 mb-1 truncate">
                   {request.project_name}
                 </h3>
-                <p className="text-sm text-text-secondary">{request.project_type}</p>
+                <div className="flex items-center gap-2">
+                   <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                   <p className="text-[13px] font-medium text-slate-400">{request.project_type}</p>
+                </div>
               </div>
-              {getStatusBadge(request.status)}
+              <div className="shrink-0">
+                {getStatusBadge(request.status)}
+              </div>
             </div>
 
-            <p className="text-sm text-text-secondary mb-4 line-clamp-2">
+            <p className="text-[14px] text-slate-600 mb-6 line-clamp-2 leading-relaxed">
               {request.description}
             </p>
 
-            <div className="space-y-2 mb-4">
-              <div className="flex items-center gap-2 text-sm text-text-secondary">
-                <Mail className="w-4 h-4" />
-                <span>{request.client_name} ({request.client_email})</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-y-3 gap-x-4 mb-6 p-4 bg-slate-50 rounded-xl border border-slate-100">
+              <div className="flex items-center gap-2.5 text-[13px] text-slate-600">
+                <Mail className="w-4 h-4 text-slate-400" />
+                <span className="truncate">{request.client_name}</span>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1 text-sm text-text-secondary">
-                  <DollarSign className="w-4 h-4" />
-                  <span>{request.budget_range}</span>
-                </div>
-                <div className="flex items-center gap-1 text-sm text-text-secondary">
-                  <Calendar className="w-4 h-4" />
-                  <span>Deadline: {request.deadline}</span>
-                </div>
+              <div className="flex items-center gap-2.5 text-[13px] text-slate-600">
+                <DollarSign className="w-4 h-4 text-slate-400" />
+                <span className="font-semibold text-slate-900">{request.budget_range}</span>
+              </div>
+              <div className="flex items-center gap-2.5 text-[13px] text-slate-600 md:col-span-2">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                <span>Deadline: <span className="font-medium text-slate-900">{request.deadline}</span></span>
               </div>
             </div>
 
-            <div className="flex gap-2 pt-4 border-t border-border">
+            <div className="flex flex-wrap items-center gap-3 pt-5 border-t border-slate-100">
               <Button
                 variant="outline"
                 size="sm"
-                className="flex-1"
+                className="flex-1 h-10 border-slate-200 hover:bg-slate-50 rounded-xl font-semibold text-[13px]"
                 onClick={() => setSelectedRequest(request)}
               >
-                <Eye className="w-4 h-4 mr-1" />
-                View Details
+                <Eye className="w-4 h-4 mr-2 text-slate-400" />
+                Details
               </Button>
               {request.status === "pending" && (
-                <>
+                <div className="flex-[2] flex gap-3">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1"
+                    className="flex-1 h-10 border-slate-200 hover:bg-slate-50 rounded-xl font-semibold text-[13px]"
                     onClick={() => handleRequestInfo(request.id)}
                   >
-                    <MessageCircle className="w-4 h-4 mr-1" />
                     Request Info
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1"
+                    className="flex-1 h-10 border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 rounded-xl font-semibold text-[13px]"
                     onClick={() => handleDecline(request.id)}
                   >
-                    <XCircle className="w-4 h-4 mr-1" />
                     Decline
                   </Button>
                   <Button
                     size="sm"
-                    className="flex-1"
+                    className="flex-1 h-10 bg-primary hover:bg-orange-600 rounded-xl font-bold text-[13px] shadow-md shadow-primary/20"
                     onClick={() => handleAccept(request.id)}
                   >
-                    <CheckCircle className="w-4 h-4 mr-1" />
                     Accept
                   </Button>
-                </>
+                </div>
               )}
               {request.status === "accepted" && (
                 <Button
                   size="sm"
-                  className="flex-1"
+                  className="flex-[2] h-10 bg-primary hover:bg-orange-600 rounded-xl font-bold text-[13px] shadow-md shadow-primary/20"
                   onClick={() => {
                     toast.success("Creating workspace...", {
                       description: `Setting up workspace for ${request.project_name}`,
                     });
                   }}
                 >
-                  <FolderPlus className="w-4 h-4 mr-1" />
+                  <FolderPlus className="w-4 h-4 mr-2" />
                   Create Workspace
                 </Button>
               )}

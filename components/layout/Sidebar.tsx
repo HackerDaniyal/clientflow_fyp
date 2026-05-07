@@ -121,11 +121,11 @@ export function Sidebar({ role }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2">
+      <nav className="flex-1 overflow-y-auto py-6 px-3">
         {navSections.map((section, idx) => (
-          <div key={idx} className="mb-6">
+          <div key={idx} className="mb-8 last:mb-0">
             {!sidebarCollapsed && (
-              <h3 className="text-[11px] font-medium text-text-secondary uppercase tracking-wider mb-2 px-3">
+              <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-3 px-3">
                 {section.title}
               </h3>
             )}
@@ -145,11 +145,11 @@ export function Sidebar({ role }: SidebarProps) {
                     )}
                   >
                     <Icon className={cn(
-                      "w-5 h-5 flex-shrink-0",
-                      isActive ? "text-primary" : "text-text-secondary group-hover:text-text-primary"
+                      "w-[18px] h-[18px] flex-shrink-0 transition-colors",
+                      isActive ? "text-primary" : "text-slate-400 group-hover:text-slate-600"
                     )} />
                     {!sidebarCollapsed && (
-                      <span className="text-sm">{item.label}</span>
+                      <span className="text-[13px]">{item.label}</span>
                     )}
                   </Link>
                 );
@@ -160,34 +160,49 @@ export function Sidebar({ role }: SidebarProps) {
       </nav>
 
       {/* Bottom Section */}
-      <div className="border-t border-border p-2 space-y-1">
+      <div className="mt-auto p-4 border-t border-border bg-slate-50/50">
         {!sidebarCollapsed && (
-          <>
-            <Link href={`/${role}/settings`} className="sidebar-item">
-              <Settings className="w-5 h-5 text-text-secondary" />
-              <span className="text-sm">Settings</span>
-            </Link>
-            <button className="sidebar-item w-full">
-              <HelpCircle className="w-5 h-5 text-text-secondary" />
-              <span className="text-sm">Help & Support</span>
-            </button>
+          <div className="space-y-4">
             {role === "freelancer" && (
-              <button className="sidebar-item w-full text-primary hover:bg-primary-light">
-                <ArrowUpCircle className="w-5 h-5" />
-                <span className="text-sm font-medium">Upgrade to Pro</span>
-              </button>
+              <div className="bg-gradient-to-br from-primary to-orange-600 rounded-xl p-4 text-white shadow-lg shadow-primary/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <ArrowUpCircle className="w-5 h-5 text-white/90" />
+                  <span className="text-sm font-bold">Pro Plan</span>
+                </div>
+                <p className="text-[11px] text-white/80 mb-3 leading-relaxed">
+                  Unlock advanced analytics and unlimited workspaces.
+                </p>
+                <button className="w-full py-2 bg-white text-primary text-[11px] font-bold rounded-lg hover:bg-slate-50 transition-colors">
+                  Upgrade Now
+                </button>
+              </div>
             )}
-          </>
+            <div className="space-y-1">
+              <Link href={`/${role}/settings`} className="sidebar-item hover:bg-slate-200/50">
+                <Settings className="w-[18px] h-[18px] text-slate-400" />
+                <span className="text-[13px]">Settings</span>
+              </Link>
+              <button className="sidebar-item w-full hover:bg-slate-200/50">
+                <HelpCircle className="w-[18px] h-[18px] text-slate-400" />
+                <span className="text-[13px]">Help & Support</span>
+              </button>
+            </div>
+          </div>
         )}
         {sidebarCollapsed && (
-          <>
+          <div className="space-y-2 flex flex-col items-center">
             <Link href={`/${role}/settings`} className="sidebar-item justify-center px-2">
-              <Settings className="w-5 h-5 text-text-secondary" />
+              <Settings className="w-5 h-5 text-slate-400" />
             </Link>
             <button className="sidebar-item justify-center px-2 w-full">
-              <HelpCircle className="w-5 h-5 text-text-secondary" />
+              <HelpCircle className="w-5 h-5 text-slate-400" />
             </button>
-          </>
+            {role === "freelancer" && (
+              <button className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white shadow-lg shadow-primary/20 mt-2">
+                <ArrowUpCircle className="w-5 h-5" />
+              </button>
+            )}
+          </div>
         )}
       </div>
     </aside>
