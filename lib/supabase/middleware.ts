@@ -32,17 +32,22 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Role-based routing logic
   const url = request.nextUrl.clone()
-  
-  if (!user && (url.pathname.startsWith('/freelancer') || url.pathname.startsWith('/client') || url.pathname.startsWith('/admin'))) {
+  const isAuthPage = url.pathname.startsWith('/auth/')
+  const isProtectedPage = url.pathname.startsWith('/freelancer') || 
+                          url.pathname.startsWith('/client') || 
+                          url.pathname.startsWith('/admin') ||
+                          url.pathname === '/auth/onboarding'
+
+  if (!user && isProtectedPage) {
     // No session, redirect to login
-    url.pathname = '/login'
+    url.pathname = '/auth/login'
     return NextResponse.redirect(url)
   }
 
   if (user) {
-    const { data: profile } = await supabase
+    // Check if profile exists
+    const { data: profile, error } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
@@ -50,24 +55,41 @@ export async function updateSession(request: NextRequest) {
 
     const role = profile?.role
 
-    // Redirect if accessing wrong portal
-    if (url.pathname.startsWith('/freelancer') && role !== 'freelancer') {
+    // If user is on an auth page, redirect them to their dashboard or onboarding
+    // EXCEPTION: Allow /auth/reset-password for users in recovery flow
+    if (isAuthPage && url.pathname !== '/auth/onboarding' && url.pathname !== '/auth/reset-password') {
+      if (!role) {
+        url.pathname = '/auth/onboarding'
+      } else {
+        url.pathname = `/${role}/dashboard`
+      }
+      return NextResponse.redirect(url)
+    }
+
+    // If user has no role and is not on onboarding, redirect to onboarding
+    if (!role && url.pathname !== '/auth/onboarding') {
+      url.pathname = '/auth/onboarding'
+      return NextResponse.redirect(url)
+    }
+
+    // If user has a role and tries to access onboarding, redirect to dashboard
+    if (role && url.pathname === '/auth/onboarding') {
       url.pathname = `/${role}/dashboard`
+      return NextResponse.redirect(url)
+    }
+
+    // Role-based protection for portal routes
+    if (url.pathname.startsWith('/freelancer') && role !== 'freelancer') {
+      url.pathname = role ? `/${role}/dashboard` : '/auth/onboarding'
       return NextResponse.redirect(url)
     }
     if (url.pathname.startsWith('/client') && role !== 'client') {
-      url.pathname = `/${role}/dashboard`
+      url.pathname = role ? `/${role}/dashboard` : '/auth/onboarding'
       return NextResponse.redirect(url)
     }
     if (url.pathname.startsWith('/admin') && role !== 'admin') {
-      url.pathname = `/${role}/dashboard`
+      url.pathname = role ? `/${role}/dashboard` : '/auth/onboarding'
       return NextResponse.redirect(url)
-    }
-    
-    // Redirect /login or / to appropriate dashboard if already logged in
-    if (url.pathname === '/login' || url.pathname === '/') {
-        url.pathname = `/${role}/dashboard`
-        return NextResponse.redirect(url)
     }
   }
 
