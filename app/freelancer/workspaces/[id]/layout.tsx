@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useParams } from "next/navigation";
 import { mockWorkspaces, getWorkspaceById } from "@/lib/mock/workspaces";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -21,9 +21,6 @@ import {
 
 interface WorkspaceLayoutProps {
   children: React.ReactNode;
-  params: {
-    id: string;
-  };
 }
 
 const TABS = [
@@ -37,9 +34,11 @@ const TABS = [
   { id: "time-log", label: "Time Log", icon: Clock },
 ];
 
-export default function WorkspaceLayout({ children, params }: WorkspaceLayoutProps) {
+export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const pathname = usePathname();
-  const workspace = getWorkspaceById(params.id);
+  const params = useParams();
+  const workspaceId = params?.id as string;
+  const workspace = getWorkspaceById(workspaceId);
 
   if (!workspace) {
     return (
@@ -124,7 +123,7 @@ export default function WorkspaceLayout({ children, params }: WorkspaceLayoutPro
             return (
               <Link
                 key={tab.id}
-                href={`/freelancer/workspaces/${params.id}/${tab.id}`}
+                href={`/freelancer/workspaces/${workspaceId}/${tab.id}`}
                 className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                   isActive
                     ? "border-primary text-primary"
