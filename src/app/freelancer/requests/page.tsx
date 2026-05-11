@@ -76,11 +76,14 @@ export default function RequestsPage() {
   const handleAccept = async (requestId: string) => {
     setActionLoading(true);
     try {
-      await acceptRequest(requestId);
+      const result = await acceptRequest(requestId);
+      console.log('Accept result:', result);
       await fetchRequests();
       setSelectedRequest(null);
-    } catch (error) {
-      alert('Failed to accept request');
+      alert('Project accepted! Workspace created successfully.');
+    } catch (error: any) {
+      console.error('Accept error:', error);
+      alert('Failed to accept request: ' + (error.message || 'Unknown error'));
     }
     setActionLoading(false);
   };
@@ -90,13 +93,16 @@ export default function RequestsPage() {
     
     setActionLoading(true);
     try {
-      await rejectRequest(selectedRequest.id, rejectMessage);
+      const result = await rejectRequest(selectedRequest.id, rejectMessage);
+      console.log('Reject result:', result);
       await fetchRequests();
       setSelectedRequest(null);
       setShowRejectModal(false);
       setRejectMessage("");
-    } catch (error) {
-      alert('Failed to reject request');
+      alert('Project rejected.');
+    } catch (error: any) {
+      console.error('Reject error:', error);
+      alert('Failed to reject request: ' + (error.message || 'Unknown error'));
     }
     setActionLoading(false);
   };

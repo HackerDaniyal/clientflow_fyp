@@ -17,12 +17,15 @@ export async function acceptRequest(requestId: string) {
     .single()
 
   if (requestError || !request) {
+    console.error('Request fetch error:', requestError)
     throw new Error('Project request not found')
   }
 
   if (request.status !== 'pending') {
     throw new Error('Request is not pending')
   }
+
+  console.log('Creating workspace for request:', requestId)
 
   // 2. Create workspace
   const { data: workspace, error: workspaceError } = await supabase
@@ -42,11 +45,13 @@ export async function acceptRequest(requestId: string) {
 
   if (workspaceError) {
     console.error('Error creating workspace:', workspaceError)
-    throw new Error('Failed to create workspace')
+    throw new Error('Failed to create workspace: ' + workspaceError.message)
   }
 
+  console.log('Workspace created:', workspace.id)
+
   // 3. Add freelancer as workspace member
-  await supabase
+  const { error: memberError } = await supabase
     .from('workspace_members')
     .insert({
       workspace_id: workspace.id,
@@ -55,8 +60,13 @@ export async function acceptRequest(requestId: string) {
       invited_by: user.id
     })
 
+  if (memberError) {
+    console.error('Error adding workspace member:', memberError)
+    // Don't throw here, workspace is already created
+  }
+
   // 4. Update request status
-  await supabase
+  const { error: updateError } = await supabase
     .from('project_requests')
     .update({ 
       status: 'accepted',
@@ -64,19 +74,29 @@ export async function acceptRequest(requestId: string) {
     })
     .eq('id', requestId)
 
-  // 5. Create notification for client
-  await supabase
-    .from('notifications')
-    .insert({
-      user_id: request.client_id,
-      type: 'request_accepted',
-      title: 'Project Request Accepted! 🎉',
-      body: `Your project "${request.form_data?.project_name}" has been accepted. Your workspace is ready!`,
-      data: { workspace_id: workspace.id, request_id: requestId }
-    })
+  if (updateError) {
+    console.error('Error updating request:', updateError)
+    throw new Error('Failed to update request status')
+  }
+
+  // 5. Create notification for client (optional - don't fail if notification table has issues)
+  try {
+    await supabase
+      .from('notifications')
+      .insert({
+        user_id: request.client_id,
+        type: 'request_accepted',
+        title: 'Project Request Accepted!',
+        body: `Your project "${request.form_data?.project_name}" has been accepted. Your workspace is ready!`,
+        data: { workspace_id: workspace.id, request_id: requestId }
+      })
+  } catch (notifError) {
+    console.error('Notification error (non-critical):', notifError)
+  }
 
   revalidatePath('/freelancer/requests')
   revalidatePath('/freelancer/dashboard')
+  return { success: true, workspaceId: workspace.id }
 }
 
 export async function rejectRequest(requestId: string, message: string = '') {
@@ -93,6 +113,7 @@ export async function rejectRequest(requestId: string, message: string = '') {
     .single()
 
   if (requestError || !request) {
+    console.error('Request fetch error:', requestError)
     throw new Error('Project request not found')
   }
 
@@ -101,7 +122,7 @@ export async function rejectRequest(requestId: string, message: string = '') {
   }
 
   // 2. Update request status
-  await supabase
+  const { error: updateError } = await supabase
     .from('project_requests')
     .update({ 
       status: 'rejected',
@@ -109,17 +130,27 @@ export async function rejectRequest(requestId: string, message: string = '') {
     })
     .eq('id', requestId)
 
-  // 3. Create notification for client
-  await supabase
-    .from('notifications')
-    .insert({
-      user_id: request.client_id,
-      type: 'request_rejected',
-      title: 'Project Request Update',
-      body: message || `Your project request "${request.form_data?.project_name}" has been rejected.`,
-      data: { request_id: requestId, message }
-    })
+  if (updateError) {
+    console.error('Error updating request:', updateError)
+    throw new Error('Failed to update request status')
+  }
+
+  // 3. Create notification for client (optional)
+  try {
+    await supabase
+      .from('notifications')
+      .insert({
+        user_id: request.client_id,
+        type: 'request_rejected',
+        title: 'Project Request Update',
+        body: message || `Your project request "${request.form_data?.project_name}" has been rejected.`,
+        data: { request_id: requestId, message }
+      })
+  } catch (notifError) {
+    console.error('Notification error (non-critical):', notifError)
+  }
 
   revalidatePath('/freelancer/requests')
   revalidatePath('/freelancer/dashboard')
+  return { success: true }
 }
