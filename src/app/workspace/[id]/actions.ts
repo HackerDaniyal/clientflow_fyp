@@ -87,7 +87,7 @@ export async function sendMessage(workspaceId: string, content: string, fileUrl?
   if (!user) throw new Error('Unauthorized')
 
   const { error } = await supabase
-    .from('messages')
+    .from('workspace_messages')
     .insert({
       workspace_id: workspaceId,
       sender_id: user.id,

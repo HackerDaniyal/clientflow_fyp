@@ -82,7 +82,7 @@ export default function WorkspaceClient({
       .channel('messages')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `workspace_id=eq.${workspaceId}` },
+        { event: 'INSERT', schema: 'public', table: 'workspace_messages', filter: `workspace_id=eq.${workspaceId}` },
         (payload) => {
           console.log('New message:', payload);
           fetchMessages();
@@ -120,7 +120,7 @@ export default function WorkspaceClient({
 
   const fetchMessages = async () => {
     const { data } = await supabase
-      .from("messages")
+      .from("workspace_messages")
       .select("*, sender:sender_id(full_name, avatar_url)")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: true })

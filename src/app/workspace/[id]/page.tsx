@@ -9,19 +9,29 @@ export default async function WorkspacePage({ params }: { params: { id: string }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
+  // Get user profile to determine role
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  const userRole = profile?.role || "freelancer";
+  const dashboardRoute = userRole === "client" ? "/client/dashboard" : "/freelancer/dashboard";
+
   // Fetch workspace
   const { data: workspace, error: workspaceError } = await supabase
     .from("workspaces")
     .select(`
       *,
-      profiles:freelancer_id(full_name, email),
-      client_profiles:client_id(full_name, email)
+      freelancer:profiles!workspaces_freelancer_id_fkey(full_name, email),
+      client:profiles!workspaces_client_id_fkey(full_name, email)
     `)
     .eq("id", params.id)
     .single();
 
   if (workspaceError || !workspace) {
-    redirect("/freelancer/dashboard?error=Workspace not found");
+    redirect(`${dashboardRoute}?error=Workspace not found`);
   }
 
   // Verify user has access
@@ -30,7 +40,7 @@ export default async function WorkspacePage({ params }: { params: { id: string }
     workspace.client_id === user.id;
 
   if (!hasAccess) {
-    redirect("/freelancer/dashboard?error=Access denied");
+    redirect(`${dashboardRoute}?error=Access denied`);
   }
 
   // Fetch tasks
@@ -44,9 +54,9 @@ export default async function WorkspacePage({ params }: { params: { id: string }
     .eq("workspace_id", params.id)
     .order("created_at", { ascending: false });
 
-  // Fetch messages
+  // Fetch messages from workspace_messages
   const { data: messages } = await supabase
-    .from("messages")
+    .from("workspace_messages")
     .select(`
       *,
       sender:sender_id(full_name, avatar_url)
