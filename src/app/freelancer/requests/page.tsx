@@ -76,11 +76,23 @@ export default function RequestsPage() {
   const handleAccept = async (requestId: string) => {
     setActionLoading(true);
     try {
-      const result = await acceptRequest(requestId);
+      // Use debug endpoint to see exact error
+      const response = await fetch('/api/debug/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId })
+      });
+      
+      const result = await response.json();
       console.log('Accept result:', result);
-      await fetchRequests();
-      setSelectedRequest(null);
-      alert('Project accepted! Workspace created successfully.');
+      
+      if (!response.ok) {
+        alert(`Error: ${result.error}\nStep: ${result.step}\nCode: ${result.code || 'N/A'}`);
+      } else {
+        alert('Project accepted! Workspace created.');
+        await fetchRequests();
+        setSelectedRequest(null);
+      }
     } catch (error: any) {
       console.error('Accept error:', error);
       alert('Failed to accept request: ' + (error.message || 'Unknown error'));
