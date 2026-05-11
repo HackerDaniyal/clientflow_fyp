@@ -1,5 +1,6 @@
 import React from "react";
-import { IconPlus, IconUsers, IconHourglass } from "@tabler/icons-react";
+import Link from "next/link";
+import { IconPlus, IconUsers, IconHourglass, IconBriefcase, IconArrowRight } from "@tabler/icons-react";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function FreelancerDashboard() {
@@ -19,6 +20,27 @@ export default async function FreelancerDashboard() {
     .order('created_at', { ascending: false });
 
   const totalClients = linkedClients?.length || 0;
+
+  // Fetch workspaces (active projects)
+  const { data: workspaces } = await supabase
+    .from('workspaces')
+    .select(`
+      *,
+      client:profiles!workspaces_client_id_fkey(full_name)
+    `)
+    .eq('freelancer_id', user?.id)
+    .order('created_at', { ascending: false });
+
+  const activeProjects = workspaces?.filter(w => w.status === 'active').length || 0;
+
+  // Fetch pending requests
+  const { data: pendingRequests } = await supabase
+    .from('project_requests')
+    .select('id')
+    .eq('freelancer_id', user?.id)
+    .eq('status', 'pending');
+
+  const pendingCount = pendingRequests?.length || 0;
 
   return (
     <div className="space-y-8">
@@ -50,18 +72,59 @@ export default async function FreelancerDashboard() {
             </div>
             <span className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">Pending Requests</span>
           </div>
-          <p className="text-2xl font-medium text-brand-dark">0</p>
+          <p className="text-2xl font-medium text-brand-dark">{pendingCount}</p>
         </div>
         <div className="card">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 bg-brand-light/30 rounded-badge flex items-center justify-center text-brand-dark">
-              <IconUsers size={18} stroke={2} />
+              <IconBriefcase size={18} stroke={2} />
             </div>
             <span className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">Active Projects</span>
           </div>
-          <p className="text-2xl font-medium text-brand-dark">0</p>
+          <p className="text-2xl font-medium text-brand-dark">{activeProjects}</p>
         </div>
       </section>
+
+      {activeProjects > 0 && (
+        <section className="card">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="section-title">Active Workspaces</h3>
+            <Link href="/freelancer/requests" className="text-[12px] text-brand-accent hover:underline font-medium">
+              View All Requests →
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {workspaces?.slice(0, 5).map((workspace) => (
+              <Link
+                key={workspace.id}
+                href={`/workspace/${workspace.id}`}
+                className="flex items-center gap-4 py-3 border-b border-brand-light last:border-0 hover:bg-brand-surface rounded-lg px-3 -mx-3 transition-colors group"
+              >
+                <div className="w-10 h-10 rounded-lg bg-brand-accent/20 flex items-center justify-center text-brand-accent">
+                  <IconBriefcase size={20} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[13px] font-medium text-brand-dark">{workspace.name}</p>
+                  <p className="text-[11px] text-text-tertiary">
+                    {workspace.client?.full_name || 'Unknown Client'} · {workspace.project_type || 'Project'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`badge text-[9px] ${
+                    workspace.status === 'active' ? 'bg-green-100 text-green-700' :
+                    workspace.status === 'review' ? 'bg-blue-100 text-blue-700' :
+                    workspace.status === 'completed' ? 'bg-purple-100 text-purple-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {workspace.status}
+                  </span>
+                  <IconArrowRight size={16} className="text-text-tertiary group-hover:text-brand-accent transition-colors" />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {totalClients > 0 && (
         <section className="card">

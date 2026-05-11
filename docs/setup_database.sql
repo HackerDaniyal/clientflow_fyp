@@ -84,6 +84,44 @@ create table if not exists workspace_members (
   joined_at timestamptz default now()
 );
 
+-- 9. Create tasks table
+create table if not exists tasks (
+  id uuid primary key default uuid_generate_v4(),
+  workspace_id uuid references workspaces(id) on delete cascade,
+  title text not null,
+  description text,
+  priority text check (priority in ('low', 'medium', 'high', 'urgent')),
+  status text check (status in ('todo', 'in_progress', 'completed')) default 'todo',
+  assigned_to uuid references profiles(id),
+  created_by uuid references profiles(id),
+  due_date timestamptz,
+  created_at timestamptz default now(),
+  completed_at timestamptz
+);
+
+-- 10. Create messages table
+create table if not exists messages (
+  id uuid primary key default uuid_generate_v4(),
+  workspace_id uuid references workspaces(id) on delete cascade,
+  sender_id uuid references profiles(id) on delete cascade,
+  content text not null,
+  file_url text,
+  file_name text,
+  created_at timestamptz default now()
+);
+
+-- 11. Create activity_log table
+create table if not exists activity_log (
+  id uuid primary key default uuid_generate_v4(),
+  workspace_id uuid references workspaces(id) on delete cascade,
+  user_id uuid references profiles(id),
+  action text not null,
+  entity_type text,
+  entity_id uuid,
+  details jsonb,
+  created_at timestamptz default now()
+);
+
 -- ==========================================
 -- Enable Row Level Security (RLS)
 -- ==========================================
@@ -95,6 +133,9 @@ alter table project_requests enable row level security;
 alter table notifications enable row level security;
 alter table workspaces enable row level security;
 alter table workspace_members enable row level security;
+alter table tasks enable row level security;
+alter table messages enable row level security;
+alter table activity_log enable row level security;
 
 -- ==========================================
 -- Drop existing policies (if they exist)
@@ -126,10 +167,22 @@ drop policy if exists "System can create notifications" on notifications;
 -- Drop workspaces policies
 drop policy if exists "Users can view their workspaces" on workspaces;
 drop policy if exists "Freelancers can create workspaces" on workspaces;
+drop policy if exists "Freelancers can update their workspaces" on workspaces;
 
 -- Drop workspace_members policies
 drop policy if exists "Members can view workspace members" on workspace_members;
 drop policy if exists "Freelancers can manage workspace members" on workspace_members;
+
+-- Drop tasks policies
+drop policy if exists "Members can view tasks" on tasks;
+drop policy if exists "Editors can manage tasks" on tasks;
+
+-- Drop messages policies
+drop policy if exists "Members can view messages" on messages;
+drop policy if exists "Members can send messages" on messages;
+
+-- Drop activity_log policies
+drop policy if exists "Members can view activity log" on activity_log;
 
 -- ==========================================
 -- RLS Policies for profiles
@@ -247,6 +300,73 @@ create policy "Freelancers can manage workspace members"
       and workspaces.freelancer_id = auth.uid()
     )
   );
+
+-- ==========================================
+-- RLS Policies for tasks
+-- ==========================================
+
+create policy "Members can view tasks" 
+  on tasks for select 
+  using (
+    exists (
+      select 1 from workspaces 
+      where workspaces.id = tasks.workspace_id 
+      and (workspaces.client_id = auth.uid() or workspaces.freelancer_id = auth.uid())
+    )
+  );
+
+create policy "Editors can manage tasks" 
+  on tasks for all 
+  using (
+    exists (
+      select 1 from workspace_members 
+      where workspace_members.workspace_id = tasks.workspace_id 
+      and workspace_members.user_id = auth.uid() 
+      and workspace_members.role = 'editor'
+    )
+  );
+
+-- ==========================================
+-- RLS Policies for messages
+-- ==========================================
+
+create policy "Members can view messages" 
+  on messages for select 
+  using (
+    exists (
+      select 1 from workspaces 
+      where workspaces.id = messages.workspace_id 
+      and (workspaces.client_id = auth.uid() or workspaces.freelancer_id = auth.uid())
+    )
+  );
+
+create policy "Members can send messages" 
+  on messages for insert 
+  with check (
+    exists (
+      select 1 from workspaces 
+      where workspaces.id = messages.workspace_id 
+      and (workspaces.client_id = auth.uid() or workspaces.freelancer_id = auth.uid())
+    )
+  );
+
+-- ==========================================
+-- RLS Policies for activity_log
+-- ==========================================
+
+create policy "Members can view activity log" 
+  on activity_log for select 
+  using (
+    exists (
+      select 1 from workspaces 
+      where workspaces.id = activity_log.workspace_id 
+      and (workspaces.client_id = auth.uid() or workspaces.freelancer_id = auth.uid())
+    )
+  );
+
+create policy "System can create activity logs" 
+  on activity_log for insert 
+  with check (true);
 
 -- ==========================================
 -- Trigger to create profile on user signup

@@ -20,13 +20,17 @@ export async function GET(request: Request) {
     
     if (!error && user) {
       // Fetch user role to determine the correct dashboard
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .single()
 
-      const role = profile?.role || 'freelancer'
+      // Determine role - fallback to user_metadata if profile fetch fails
+      const role = profile?.role || user.user_metadata?.role || 'freelancer'
+      
+      console.log('Email confirmed! User:', user.email, 'Role:', role)
+      
       const forwardTo = next !== '/' ? next : `/${role}/dashboard`
       
       return NextResponse.redirect(`${origin}${forwardTo}`)

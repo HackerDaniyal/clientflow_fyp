@@ -17,8 +17,6 @@ export async function generateReferralCode() {
     .insert({
       freelancer_id: user.id,
       code,
-      max_uses: 100,
-      use_count: 0,
       is_active: true
     })
 

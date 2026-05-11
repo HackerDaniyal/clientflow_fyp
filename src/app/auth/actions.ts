@@ -73,11 +73,22 @@ export async function signup(formData: FormData) {
     return redirect('/auth/signup?error=' + error.message)
   }
 
-  // After signup, we'd typically have a trigger that creates the 'profiles' row
-  // For now, assume it's created or we do it manually if needed
+  // Auto-login after signup (email confirmation is disabled)
+  if (data.user) {
+    const { error: loginError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
+    if (!loginError) {
+      revalidatePath('/', 'layout')
+      redirect(`/${role}/dashboard`)
+    }
+  }
+
+  // Fallback to login page if auto-login fails
   revalidatePath('/', 'layout')
-  redirect('/auth/login?message=Check email to confirm your account')
+  redirect('/auth/login?message=Account created! Please login.')
 }
 
 export async function logout() {
