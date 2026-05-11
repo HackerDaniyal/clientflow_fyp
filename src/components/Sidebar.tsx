@@ -41,7 +41,6 @@ const navItems: Record<"freelancer" | "client" | "admin", NavItem[]> = {
     { label: "Workspaces", href: "/freelancer/workspaces", icon: IconBriefcase },
     { label: "Invoices", href: "/freelancer/invoices", icon: IconFileInvoice },
     { label: "Messages", href: "/freelancer/messages", icon: IconMessageCircle, badge: 3 },
-    { label: "AI Assistant", href: "/freelancer/ai-assistant", icon: IconRobot },
     { label: "Settings", href: "/freelancer/settings", icon: IconSettings },
   ],
   client: [
@@ -50,7 +49,6 @@ const navItems: Record<"freelancer" | "client" | "admin", NavItem[]> = {
     { label: "My Workspace", href: "/client/workspace", icon: IconBriefcase },
     { label: "To-Do List", href: "/client/todos", icon: IconChecklist },
     { label: "Feedback Chat", href: "/client/chat", icon: IconMessageCircle, badge: 1 },
-    { label: "AI Assistant", href: "/client/ai-assistant", icon: IconRobot },
   ],
   admin: [
     { label: "Platform Overview", href: "/admin/dashboard", icon: IconLayoutDashboard },
