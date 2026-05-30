@@ -1,69 +1,82 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { normalizeReferralCode } from '@/lib/referral'
 
 export async function linkFreelancer(formData: FormData) {
   const supabase = createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Unauthorized')
+  if (!user) {
+    return { error: 'You must be signed in to link a freelancer.' }
+  }
 
-  const code = formData.get('code') as string
+  const rawCode = formData.get('code')
+  if (typeof rawCode !== 'string' || !rawCode.trim()) {
+    return { error: 'Please enter a referral code.' }
+  }
 
-  // 1. Validate referral code
-  const { data: referral, error: referralError } = await supabase
-    .from('referral_codes')
-    .select('*, profiles!referral_codes_freelancer_id_fkey(full_name, avatar_url)')
-    .eq('code', code)
-    .eq('is_active', true)
-    .single()
+  const code = normalizeReferralCode(rawCode)
 
-  if (referralError || !referral) {
-    return { error: 'Invalid or inactive referral code' }
+  const { data: rows, error: lookupError } = await supabase.rpc('lookup_referral_code', {
+    p_code: code,
+  })
+
+  if (lookupError) {
+    console.error('Referral lookup error:', lookupError)
+    return { error: 'Could not validate referral code. Please try again.' }
+  }
+
+  const referral = Array.isArray(rows) ? rows[0] : rows
+
+  if (!referral) {
+    return {
+      error:
+        'Invalid or inactive referral code. Check the code from your freelancer (e.g. FL-XXXXXX) and try again.',
+    }
   }
 
   if (referral.use_count >= referral.max_uses) {
-    return { error: 'Referral code has reached its maximum uses' }
+    return { error: 'This referral code has reached its maximum uses.' }
   }
 
-  // 2. Check if client is already linked
   const { data: existingLink } = await supabase
     .from('client_freelancer_links')
     .select('id')
     .eq('client_id', user.id)
-    .single()
+    .maybeSingle()
 
   if (existingLink) {
-    return { error: 'You have already linked with a freelancer' }
+    return { error: 'You are already linked with a freelancer.' }
   }
 
-  // 3. Create the link
-  const { error: linkError } = await supabase
-    .from('client_freelancer_links')
-    .insert({
-      client_id: user.id,
-      freelancer_id: referral.freelancer_id,
-      referral_code_id: referral.id,
-      status: 'active'
-    })
+  const { error: linkError } = await supabase.from('client_freelancer_links').insert({
+    client_id: user.id,
+    freelancer_id: referral.freelancer_id,
+    referral_code_id: referral.id,
+    status: 'active',
+  })
 
   if (linkError) {
     console.error('Error creating link:', linkError)
     return { error: 'Failed to link with freelancer. Please try again.' }
   }
 
-  // 4. Update use count
-  await supabase
-    .from('referral_codes')
-    .update({ use_count: referral.use_count + 1 })
-    .eq('id', referral.id)
+  const { error: incrementError } = await supabase.rpc('increment_referral_use_count', {
+    p_code_id: referral.id,
+  })
 
-  // 5. Return success with freelancer info
-  return { 
-    success: true, 
-    freelancerName: referral.profiles?.full_name || 'your freelancer',
-    redirect: '/client/setup-project'
+  if (incrementError) {
+    console.error('Referral use count increment error:', incrementError)
+  }
+
+  revalidatePath('/client/dashboard')
+  revalidatePath('/freelancer/clients')
+
+  return {
+    success: true,
+    freelancerName: referral.freelancer_name || 'your freelancer',
+    redirect: '/client/setup-project',
   }
 }

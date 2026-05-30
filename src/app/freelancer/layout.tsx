@@ -1,12 +1,15 @@
 import React from "react";
 import Sidebar from "@/components/Sidebar";
-import AIAssistant from "@/components/AIAssistant";
+import AIAssistant from "@/components/AIAssistantLazy";
+import { requireRole } from "@/lib/auth/require-role";
 
-export default function FreelancerLayout({
+export default async function FreelancerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await requireRole("freelancer");
+
   return (
     <div className="flex min-h-screen bg-brand-surface">
       <Sidebar role="freelancer" />

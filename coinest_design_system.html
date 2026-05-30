@@ -1,0 +1,544 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); }
+  .ds-root { padding: 24px 0; }
+  .section { margin-bottom: 40px; }
+  .section-title { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-secondary); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+
+  /* COLOR SWATCHES */
+  .swatch-group { display: flex; flex-direction: column; gap: 4px; }
+  .swatch { width: 52px; height: 36px; border-radius: 8px; border: 0.5px solid rgba(0,0,0,0.08); }
+  .swatch-label { font-size: 11px; color: var(--color-text-secondary); text-align: center; }
+
+  /* TYPOGRAPHY */
+  .type-row { display: flex; flex-direction: column; gap: 4px; padding: 12px 16px; background: var(--color-background-secondary); border-radius: 8px; min-width: 200px; }
+  .type-meta { font-size: 11px; color: var(--color-text-tertiary); }
+
+  /* SPACING */
+  .space-item { display: flex; align-items: center; gap: 8px; }
+  .space-bar { background: #1a6b45; border-radius: 2px; height: 8px; }
+  .space-label { font-size: 12px; color: var(--color-text-secondary); min-width: 120px; }
+
+  /* RADIUS */
+  .radius-item { width: 56px; height: 56px; background: #1a6b45; display: flex; align-items: center; justify-content: center; }
+  .radius-label { font-size: 11px; color: var(--color-text-secondary); text-align: center; margin-top: 4px; }
+
+  /* BUTTONS */
+  .btn-primary { background: #1a3d2b; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .btn-secondary { background: transparent; color: #1a3d2b; border: 1.5px solid #1a3d2b; border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .btn-ghost { background: transparent; color: var(--color-text-secondary); border: 0.5px solid var(--color-border-secondary); border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; }
+  .btn-danger { background: #d83c2e; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .btn-sm { padding: 6px 14px; font-size: 12px; border-radius: 6px; }
+  .btn-lg { padding: 13px 28px; font-size: 15px; border-radius: 10px; }
+
+  /* BADGES */
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+  .badge-success { background: #d4f0e2; color: #0d5c35; }
+  .badge-warning { background: #fff0cc; color: #7a4f00; }
+  .badge-danger { background: #fde8e6; color: #b02a1e; }
+  .badge-neutral { background: var(--color-background-secondary); color: var(--color-text-secondary); }
+  .badge-info { background: #dbeeff; color: #134a85; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .dot-success { background: #1a9960; }
+  .dot-warning { background: #e6a800; }
+  .dot-danger { background: #d83c2e; }
+
+  /* INPUTS */
+  .input-demo { width: 100%; padding: 10px 14px; border-radius: 8px; border: 0.5px solid var(--color-border-secondary); background: var(--color-background-secondary); color: var(--color-text-primary); font-size: 14px; outline: none; }
+  .input-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 5px; }
+  .input-group { display: flex; flex-direction: column; gap: 0; min-width: 200px; flex: 1; }
+
+  /* CARD TYPES */
+  .card-demo { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: 12px; padding: 16px 18px; }
+  .card-dark { background: #1a3d2b; border-radius: 12px; padding: 16px 18px; color: #fff; }
+  .card-number { font-size: 22px; font-weight: 500; color: var(--color-text-primary); }
+  .card-label { font-size: 12px; color: var(--color-text-secondary); }
+  .card-trend { font-size: 12px; color: #1a9960; font-weight: 500; }
+  .card-trend.down { color: #d83c2e; }
+
+  /* NAV ITEM */
+  .nav-demo { display: flex; flex-direction: column; gap: 2px; background: var(--color-background-secondary); border-radius: 10px; padding: 8px; min-width: 180px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; font-size: 14px; color: var(--color-text-secondary); cursor: pointer; }
+  .nav-item.active { background: #1a3d2b; color: #fff; }
+  .nav-item i { font-size: 18px; }
+
+  /* TABLE */
+  .table-demo { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .table-demo th { text-align: left; padding: 8px 12px; color: var(--color-text-secondary); font-weight: 500; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .table-demo td { padding: 10px 12px; border-bottom: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); }
+  .table-demo tr:last-child td { border-bottom: none; }
+
+  /* AVATAR */
+  .avatar { border-radius: 50%; object-fit: cover; border: 2px solid var(--color-background-primary); }
+  .avatar-placeholder { border-radius: 50%; background: #d4f0e2; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; color: #1a3d2b; }
+
+  /* PROGRESS */
+  .progress-track { background: #e8f5ee; border-radius: 99px; height: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #1a3d2b, #3acf84); }
+
+  /* SIDEBAR UPSELL */
+  .upsell-card { background: #1a3d2b; border-radius: 12px; padding: 14px 16px; color: #fff; }
+  .upsell-icon { width: 32px; height: 32px; background: rgba(255,255,255,0.15); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+  .upsell-btn { background: #d4f0e2; color: #1a3d2b; border: none; border-radius: 6px; padding: 7px 14px; font-size: 13px; font-weight: 500; cursor: pointer; margin-top: 10px; }
+
+  /* DIVIDER */
+  .divider { border: none; border-top: 0.5px solid var(--color-border-tertiary); margin: 8px 0; }
+
+  /* TABS */
+  .tab-group { display: flex; gap: 0; background: var(--color-background-secondary); border-radius: 8px; padding: 3px; }
+  .tab { padding: 8px 18px; font-size: 14px; border-radius: 6px; color: var(--color-text-secondary); cursor: pointer; border: none; background: transparent; }
+  .tab.active { background: var(--color-background-primary); color: var(--color-text-primary); font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+  /* STAT ROW */
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .stat-card { background: var(--color-background-secondary); border-radius: 10px; padding: 14px 16px; }
+
+  /* SECTION GRID */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+  h2.block-heading { font-size: 16px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 6px; }
+  p.block-desc { font-size: 13px; color: var(--color-text-secondary); line-height: 1.6; margin-bottom: 14px; }
+
+  .token-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .token-name { font-size: 12px; font-family: var(--font-mono); color: var(--color-text-secondary); min-width: 160px; }
+  .token-value { font-size: 12px; color: var(--color-text-primary); }
+  .token-preview { width: 24px; height: 24px; border-radius: 4px; border: 0.5px solid var(--color-border-tertiary); flex-shrink: 0; }
+</style>
+
+<div class="ds-root">
+  <h2 style="font-size:22px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px">Coinest Design System</h2>
+  <p style="font-size:14px;color:var(--color-text-secondary);margin-bottom:32px">Complete token reference extracted from the Coinest fintech dashboard UI</p>
+
+  <!-- 1. BRAND COLORS -->
+  <div class="section">
+    <div class="section-title">Brand color palette</div>
+    <div class="row">
+      <div class="swatch-group">
+        <div class="swatch" style="background:#1a3d2b"></div>
+        <div class="swatch-label">Primary<br>#1A3D2B</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#1a6b45"></div>
+        <div class="swatch-label">Primary Mid<br>#1A6B45</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#2f9b65"></div>
+        <div class="swatch-label">Brand Green<br>#2F9B65</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#3acf84"></div>
+        <div class="swatch-label">Accent<br>#3ACF84</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#a8e8c6"></div>
+        <div class="swatch-label">Light Accent<br>#A8E8C6</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#d4f0e2"></div>
+        <div class="swatch-label">Tint<br>#D4F0E2</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#eef8f2"></div>
+        <div class="swatch-label">Surface<br>#EEF8F2</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#f5fbf7"></div>
+        <div class="swatch-label">BG<br>#F5FBF7</div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <div class="swatch-group">
+        <div class="swatch" style="background:#1a1a1a"></div>
+        <div class="swatch-label">Text Dark<br>#1A1A1A</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#5a5a5a"></div>
+        <div class="swatch-label">Text Mid<br>#5A5A5A</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#9a9a9a"></div>
+        <div class="swatch-label">Text Muted<br>#9A9A9A</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#e5e5e5; border-color:#ddd"></div>
+        <div class="swatch-label">Border<br>#E5E5E5</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#f0f0f0; border-color:#ddd"></div>
+        <div class="swatch-label">Surface 2<br>#F0F0F0</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#d83c2e"></div>
+        <div class="swatch-label">Danger<br>#D83C2E</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#f59e0b"></div>
+        <div class="swatch-label">Warning<br>#F59E0B</div>
+      </div>
+      <div class="swatch-group">
+        <div class="swatch" style="background:#1a9960"></div>
+        <div class="swatch-label">Success<br>#1A9960</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. TYPOGRAPHY -->
+  <div class="section">
+    <div class="section-title">Typography — DM Sans / Plus Jakarta Sans</div>
+    <div class="row">
+      <div class="type-row">
+        <div style="font-size:28px;font-weight:500;color:var(--color-text-primary);line-height:1.1">$562,000</div>
+        <div class="type-meta">Display — 28px / 500 — Hero numbers</div>
+      </div>
+      <div class="type-row">
+        <div style="font-size:22px;font-weight:500;color:var(--color-text-primary)">Dashboard</div>
+        <div class="type-meta">Heading 1 — 22px / 500 — Page titles</div>
+      </div>
+      <div class="type-row">
+        <div style="font-size:18px;font-weight:500;color:var(--color-text-primary)">Recent Transactions</div>
+        <div class="type-meta">Heading 2 — 18px / 500 — Section heads</div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="type-row">
+        <div style="font-size:15px;font-weight:500;color:var(--color-text-primary)">Freelance Project</div>
+        <div class="type-meta">Body Strong — 15px / 500</div>
+      </div>
+      <div class="type-row">
+        <div style="font-size:14px;color:var(--color-text-primary)">Payment for freelance design work</div>
+        <div class="type-meta">Body — 14px / 400 — Default text</div>
+      </div>
+      <div class="type-row">
+        <div style="font-size:13px;color:var(--color-text-secondary)">Monthly internet and TV bill</div>
+        <div class="type-meta">Caption — 13px / 400 — Secondary info</div>
+      </div>
+      <div class="type-row">
+        <div style="font-size:12px;color:var(--color-text-secondary);letter-spacing:0.04em;text-transform:uppercase">All Category</div>
+        <div class="type-meta">Label — 12px / 500 — Tags, filters</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. SPACING & RADIUS -->
+  <div class="section">
+    <div class="section-title">Spacing scale</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div class="space-item"><div class="space-bar" style="width:4px"></div><span class="space-label">2px — micro gap</span></div>
+      <div class="space-item"><div class="space-bar" style="width:8px"></div><span class="space-label">4px — icon gap</span></div>
+      <div class="space-item"><div class="space-bar" style="width:16px"></div><span class="space-label">8px — inline gap</span></div>
+      <div class="space-item"><div class="space-bar" style="width:24px"></div><span class="space-label">12px — component gap</span></div>
+      <div class="space-item"><div class="space-bar" style="width:32px"></div><span class="space-label">16px — section internal pad</span></div>
+      <div class="space-item"><div class="space-bar" style="width:48px"></div><span class="space-label">24px — card padding</span></div>
+      <div class="space-item"><div class="space-bar" style="width:64px"></div><span class="space-label">32px — section gap</span></div>
+      <div class="space-item"><div class="space-bar" style="width:80px"></div><span class="space-label">40px — page section gap</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Border radius</div>
+    <div class="row" style="align-items:flex-end">
+      <div>
+        <div class="radius-item" style="border-radius:4px"></div>
+        <div class="radius-label">4px<br>Badges</div>
+      </div>
+      <div>
+        <div class="radius-item" style="border-radius:6px"></div>
+        <div class="radius-label">6px<br>Tags, pills</div>
+      </div>
+      <div>
+        <div class="radius-item" style="border-radius:8px"></div>
+        <div class="radius-label">8px<br>Buttons, inputs</div>
+      </div>
+      <div>
+        <div class="radius-item" style="border-radius:10px"></div>
+        <div class="radius-label">10px<br>Nav items</div>
+      </div>
+      <div>
+        <div class="radius-item" style="border-radius:12px"></div>
+        <div class="radius-label">12px<br>Cards</div>
+      </div>
+      <div>
+        <div class="radius-item" style="border-radius:16px"></div>
+        <div class="radius-label">16px<br>Modals</div>
+      </div>
+      <div>
+        <div class="radius-item" style="border-radius:99px; width:80px; height:36px; margin-bottom:10px"></div>
+        <div class="radius-label">99px<br>Pill / toggle</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. BUTTONS -->
+  <div class="section">
+    <div class="section-title">Buttons</div>
+    <div class="row" style="align-items:center;flex-wrap:wrap">
+      <button class="btn-primary">Add Invoice</button>
+      <button class="btn-primary btn-sm">Send Money</button>
+      <button class="btn-primary btn-lg">Proceed to Payment</button>
+    </div>
+    <div class="row" style="margin-top:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn-secondary">Get Pro</button>
+      <button class="btn-ghost">Cancel</button>
+      <button class="btn-danger">Delete</button>
+    </div>
+    <div class="row" style="margin-top:12px;align-items:center">
+      <div style="font-size:12px;color:var(--color-text-secondary)">States: default · hover (opacity 0.88) · active (scale 0.98) · disabled (opacity 0.4) · focus (2px offset ring #1a3d2b)</div>
+    </div>
+  </div>
+
+  <!-- 5. BADGES -->
+  <div class="section">
+    <div class="section-title">Status badges</div>
+    <div class="row" style="align-items:center">
+      <span class="badge badge-success"><span class="dot dot-success"></span>Completed</span>
+      <span class="badge badge-warning"><span class="dot dot-warning"></span>Pending</span>
+      <span class="badge badge-danger"><span class="dot dot-danger"></span>Overdue</span>
+      <span class="badge badge-neutral">Unpaid</span>
+      <span class="badge badge-info">Active</span>
+    </div>
+  </div>
+
+  <!-- 6. FORM ELEMENTS -->
+  <div class="section">
+    <div class="section-title">Form elements</div>
+    <div class="two-col">
+      <div class="input-group">
+        <div class="input-label">Amount</div>
+        <input class="input-demo" placeholder="$0.00" value="$250.00">
+      </div>
+      <div class="input-group">
+        <div class="input-label">Note</div>
+        <input class="input-demo" placeholder="Add a note...">
+      </div>
+      <div class="input-group">
+        <div class="input-label">Transfer Method</div>
+        <select class="input-demo" style="cursor:pointer">
+          <option>Instant Transfer</option>
+          <option>Standard</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <div class="input-label">Search</div>
+        <div style="position:relative">
+          <input class="input-demo" placeholder="Search transaction..." style="padding-left:36px">
+          <i class="ti ti-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--color-text-secondary);font-size:16px"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. TABS & SEGMENT CONTROL -->
+  <div class="section">
+    <div class="section-title">Tabs / segment control</div>
+    <div class="row">
+      <div>
+        <div class="tab-group">
+          <button class="tab active">Local</button>
+          <button class="tab">International</button>
+        </div>
+      </div>
+      <div>
+        <div class="tab-group">
+          <button class="tab active">All</button>
+          <button class="tab">Paid</button>
+          <button class="tab">Unpaid</button>
+          <button class="tab">Overdue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. CARDS -->
+  <div class="section">
+    <div class="section-title">Card components</div>
+    <div class="three-col">
+      <div class="card-demo">
+        <div class="card-label">Total Income</div>
+        <div class="card-number" style="margin:4px 0">$78,000</div>
+        <div class="card-trend">↑ 1.78% than last week</div>
+      </div>
+      <div class="card-demo">
+        <div class="card-label">Total Expense</div>
+        <div class="card-number" style="margin:4px 0">$43,000</div>
+        <div class="card-trend down">↓ 1.78% than last week</div>
+      </div>
+      <div class="card-demo">
+        <div class="card-label">Total Savings</div>
+        <div class="card-number" style="margin:4px 0">$56,000</div>
+        <div class="card-trend">↑ 1.24% than last week</div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <div class="card-dark" style="flex:1;min-width:220px">
+        <div style="font-size:12px;opacity:0.7;margin-bottom:4px">Andrew Forbist</div>
+        <div style="font-size:12px;opacity:0.5;margin-bottom:2px">Balance Amount</div>
+        <div style="font-size:24px;font-weight:500;margin-bottom:12px">$562,000</div>
+        <div style="display:flex;gap:20px;font-size:11px;opacity:0.65">
+          <span>EXP 11/29</span><span>CVV 323</span>
+        </div>
+      </div>
+      <div class="card-demo" style="flex:1;min-width:220px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:14px;font-weight:500">Daily Limit</span>
+          <i class="ti ti-dots" style="color:var(--color-text-secondary)"></i>
+        </div>
+        <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:8px">$2,500 spent of $20,000</div>
+        <div class="progress-track"><div class="progress-fill" style="width:12.5%"></div></div>
+        <div style="font-size:12px;color:var(--color-text-secondary);margin-top:6px;text-align:right">12.5%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. NAVIGATION -->
+  <div class="section">
+    <div class="section-title">Sidebar navigation</div>
+    <div class="nav-demo" style="max-width:220px">
+      <div class="nav-item"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
+      <div class="nav-item active"><i class="ti ti-transfer"></i>Payments</div>
+      <div class="nav-item"><i class="ti ti-receipt"></i>Transactions</div>
+      <div class="nav-item"><i class="ti ti-file-invoice"></i>Invoices</div>
+      <div class="nav-item"><i class="ti ti-credit-card"></i>Cards</div>
+      <div class="nav-item"><i class="ti ti-piggy-bank"></i>Saving Plans</div>
+      <div class="nav-item"><i class="ti ti-chart-line"></i>Investments</div>
+      <div class="nav-item" style="position:relative">
+        <i class="ti ti-inbox"></i>Inbox
+        <span style="margin-left:auto;background:#d83c2e;color:#fff;border-radius:99px;font-size:11px;padding:1px 7px;font-weight:600">99</span>
+      </div>
+      <div class="nav-item"><i class="ti ti-tag"></i>Promos</div>
+      <div class="nav-item"><i class="ti ti-chart-bar"></i>Insights</div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="upsell-card" style="max-width:220px">
+        <div class="upsell-icon"><i class="ti ti-lock" style="color:#fff;font-size:16px"></i></div>
+        <div style="font-size:13px;opacity:0.85;line-height:1.5">Gain full access to your finances with detailed analytics and graphs</div>
+        <button class="upsell-btn">Get Pro</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10. TABLE -->
+  <div class="section">
+    <div class="section-title">Data table</div>
+    <div class="card-demo" style="padding:0;overflow:hidden">
+      <table class="table-demo">
+        <thead>
+          <tr>
+            <th>Transaction</th>
+            <th>Amount</th>
+            <th>Date</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div style="font-weight:500">Bonus Payment</div><div style="font-size:12px;color:var(--color-text-secondary)">Income</div></td>
+            <td style="color:#1a9960;font-weight:500">+$500.00</td>
+            <td style="color:var(--color-text-secondary)">2024-09-25</td>
+            <td><span class="badge badge-success">Completed</span></td>
+          </tr>
+          <tr>
+            <td><div style="font-weight:500">Gym Membership</div><div style="font-size:12px;color:var(--color-text-secondary)">Healthcare</div></td>
+            <td style="color:#d83c2e;font-weight:500">-$45.00</td>
+            <td style="color:var(--color-text-secondary)">2024-09-22</td>
+            <td><span class="badge badge-warning">Pending</span></td>
+          </tr>
+          <tr>
+            <td><div style="font-weight:500">Netflix</div><div style="font-size:12px;color:var(--color-text-secondary)">Entertainment</div></td>
+            <td style="color:#d83c2e;font-weight:500">-$17.99</td>
+            <td style="color:var(--color-text-secondary)">2024-09-18</td>
+            <td><span class="badge badge-success">Completed</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 11. AVATARS & USER -->
+  <div class="section">
+    <div class="section-title">Avatars</div>
+    <div class="row" style="align-items:center">
+      <div class="avatar-placeholder" style="width:48px;height:48px">AF</div>
+      <div class="avatar-placeholder" style="width:40px;height:40px;font-size:12px;background:#dbeeff;color:#134a85">BJ</div>
+      <div class="avatar-placeholder" style="width:36px;height:36px;font-size:11px;background:#fff0cc;color:#7a4f00">AR</div>
+      <div class="avatar-placeholder" style="width:32px;height:32px;font-size:11px;background:#fde8e6;color:#b02a1e">CW</div>
+      <div style="font-size:13px;color:var(--color-text-secondary);margin-left:8px">48px · 40px · 36px · 32px — with semantic bg tints</div>
+    </div>
+  </div>
+
+  <!-- 12. SHADOWS & ELEVATION -->
+  <div class="section">
+    <div class="section-title">Elevation / shadows</div>
+    <div class="row">
+      <div style="background:var(--color-background-primary);border-radius:10px;padding:14px 20px;border:0.5px solid var(--color-border-tertiary);font-size:13px;color:var(--color-text-secondary)">Level 0 — flat, border only</div>
+      <div style="background:var(--color-background-primary);border-radius:10px;padding:14px 20px;box-shadow:0 1px 4px rgba(0,0,0,0.07);font-size:13px;color:var(--color-text-secondary)">Level 1 — subtle shadow</div>
+      <div style="background:var(--color-background-primary);border-radius:10px;padding:14px 20px;box-shadow:0 4px 16px rgba(0,0,0,0.10);font-size:13px;color:var(--color-text-secondary)">Level 2 — modal / dropdown</div>
+    </div>
+  </div>
+
+  <!-- 13. ICONOGRAPHY -->
+  <div class="section">
+    <div class="section-title">Iconography — Tabler Icons (outline, 20–24px)</div>
+    <div class="row" style="flex-wrap:wrap;gap:16px">
+      <div style="text-align:center"><i class="ti ti-layout-dashboard" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">dashboard</div></div>
+      <div style="text-align:center"><i class="ti ti-transfer" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">transfer</div></div>
+      <div style="text-align:center"><i class="ti ti-credit-card" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">card</div></div>
+      <div style="text-align:center"><i class="ti ti-chart-line" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">chart-line</div></div>
+      <div style="text-align:center"><i class="ti ti-chart-bar" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">chart-bar</div></div>
+      <div style="text-align:center"><i class="ti ti-piggy-bank" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">piggy-bank</div></div>
+      <div style="text-align:center"><i class="ti ti-file-invoice" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">file-invoice</div></div>
+      <div style="text-align:center"><i class="ti ti-inbox" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">inbox</div></div>
+      <div style="text-align:center"><i class="ti ti-tag" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">tag/promo</div></div>
+      <div style="text-align:center"><i class="ti ti-bell" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">bell</div></div>
+      <div style="text-align:center"><i class="ti ti-search" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">search</div></div>
+      <div style="text-align:center"><i class="ti ti-filter" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">filter</div></div>
+      <div style="text-align:center"><i class="ti ti-sort-ascending" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">sort</div></div>
+      <div style="text-align:center"><i class="ti ti-download" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">download</div></div>
+      <div style="text-align:center"><i class="ti ti-plus" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">plus</div></div>
+      <div style="text-align:center"><i class="ti ti-dots" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">more</div></div>
+      <div style="text-align:center"><i class="ti ti-arrow-left" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">back</div></div>
+      <div style="text-align:center"><i class="ti ti-chevron-down" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">chevron</div></div>
+      <div style="text-align:center"><i class="ti ti-refresh" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">refresh</div></div>
+      <div style="text-align:center"><i class="ti ti-copy" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">copy</div></div>
+      <div style="text-align:center"><i class="ti ti-share" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">share</div></div>
+      <div style="text-align:center"><i class="ti ti-trending-up" style="font-size:22px;color:#1a9960"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">trend-up</div></div>
+      <div style="text-align:center"><i class="ti ti-trending-down" style="font-size:22px;color:#d83c2e"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">trend-down</div></div>
+      <div style="text-align:center"><i class="ti ti-lock" style="font-size:22px;color:var(--color-text-secondary)"></i><div style="font-size:11px;color:var(--color-text-tertiary);margin-top:4px">lock/pro</div></div>
+    </div>
+  </div>
+
+  <!-- 14. GRID LAYOUT -->
+  <div class="section">
+    <div class="section-title">Layout grid</div>
+    <div style="font-size:13px;color:var(--color-text-secondary);display:flex;flex-direction:column;gap:8px;line-height:1.8">
+      <div><span style="font-weight:500;color:var(--color-text-primary);font-family:var(--font-mono)">Sidebar</span> — 160px fixed · dark green bg #1a3d2b (Pro card) + light #f5fbf7</div>
+      <div><span style="font-weight:500;color:var(--color-text-primary);font-family:var(--font-mono)">Main content</span> — fluid, 24px padding, white bg</div>
+      <div><span style="font-weight:500;color:var(--color-text-primary);font-family:var(--font-mono)">Stats row</span> — 3–4 col grid, equal width cards</div>
+      <div><span style="font-weight:500;color:var(--color-text-primary);font-family:var(--font-mono)">Content area</span> — 2 col (60/40) or 3 col for dashboards</div>
+      <div><span style="font-weight:500;color:var(--color-text-primary);font-family:var(--font-mono)">Right panel</span> — 280–300px fixed (stats, balance, activity)</div>
+      <div><span style="font-weight:500;color:var(--color-text-primary);font-family:var(--font-mono)">Topbar</span> — 64px height, white bg, search + icons + user</div>
+      <div><span style="font-weight:500;color:var(--color-text-primary);font-family:var(--font-mono)">Card gap</span> — 16px between cards, 24px between sections</div>
+    </div>
+  </div>
+
+  <!-- 15. PROGRESS / SAVINGS -->
+  <div class="section">
+    <div class="section-title">Progress bars</div>
+    <div style="display:flex;flex-direction:column;gap:14px;max-width:400px">
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span>Emergency Fund</span><span style="color:#1a9960;font-weight:500">60%</span></div>
+        <div class="progress-track"><div class="progress-fill" style="width:60%"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span>Home Down Payment</span><span style="color:#1a9960;font-weight:500">100%</span></div>
+        <div class="progress-track"><div class="progress-fill" style="width:100%"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span style="color:var(--color-text-secondary)">Car Replacement</span><span style="color:#f59e0b;font-weight:500">25% — Behind</span></div>
+        <div class="progress-track" style="background:#fff0cc"><div class="progress-fill" style="width:25%;background:linear-gradient(90deg,#e6a800,#f59e0b)"></div></div>
+      </div>
+    </div>
+  </div>
+</div>

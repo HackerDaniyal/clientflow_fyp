@@ -34,6 +34,12 @@ export default function AIAssistant({ userRole, workspaceId }: AIAssistantProps)
   const inputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
 
+  useEffect(() => {
+    const openHandler = () => setIsOpen(true);
+    window.addEventListener("open-ai-assistant", openHandler);
+    return () => window.removeEventListener("open-ai-assistant", openHandler);
+  }, []);
+
   // Load conversation history when opened
   useEffect(() => {
     if (isOpen) {

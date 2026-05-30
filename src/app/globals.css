@@ -3,24 +3,32 @@
 @tailwind utilities;
 
 :root {
-  --color-brand-dark: #1A3C34;
-  --color-brand-mid: #22543D;
-  --color-brand-accent: #8BC38A;
-  --color-brand-light: #D4EDD4;
-  --color-brand-surface: #EEF8EE;
-  
+  --color-brand-dark: #1A3D2B;
+  --color-brand-mid: #1A6B45;
+  --color-brand-green: #2F9B65;
+  --color-brand-accent: #3ACF84;
+  --color-brand-light: #A8E8C6;
+  --color-brand-tint: #D4F0E2;
+  --color-brand-surface: #EEF8F2;
+  --color-brand-bg: #F5FBF7;
+
   --color-text-primary: #1A1A1A;
-  --color-text-secondary: #555555;
-  --color-text-tertiary: #999999;
-  
+  --color-text-secondary: #5A5A5A;
+  --color-text-tertiary: #9A9A9A;
+
   --color-background-primary: #FFFFFF;
-  --color-background-secondary: #F9FAFB;
-  
-  --color-border-primary: #E5E7EB;
-  --color-border-secondary: #D1D5DB;
+  --color-background-secondary: #F0F0F0;
+
+  --color-border-primary: #E5E5E5;
+  --color-border-secondary: #E5E5E5;
   --color-border-tertiary: rgba(0, 0, 0, 0.08);
-  
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --color-danger: #D83C2E;
+  --color-warning: #F59E0B;
+  --color-success: #1A9960;
+
+  --font-sans: var(--font-dm-sans), system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-plus-jakarta), var(--font-dm-sans), system-ui, sans-serif;
   --font-mono: 'Fira Code', monospace;
 }
 
@@ -33,19 +41,35 @@ body {
 
 @layer components {
   .section-title {
-    @apply text-[11px] font-medium tracking-[0.08em] uppercase text-[#999999] mb-3 pb-2 border-b-[0.5px] border-[rgba(0,0,0,0.08)];
+    @apply text-[11px] font-medium tracking-[0.1em] uppercase text-text-tertiary mb-3 pb-2 border-b-[0.5px] border-[rgba(0,0,0,0.08)];
   }
-  
+
   .card {
     @apply bg-white border-[0.5px] border-[rgba(0,0,0,0.08)] rounded-[12px] p-4 md:p-5;
   }
-  
+
   .pill-btn {
-    @apply inline-flex items-center gap-2 bg-[#1A3C34] text-white rounded-[8px] px-4 py-[7px] text-[13px] font-medium transition-colors hover:bg-[#22543D];
+    @apply inline-flex items-center gap-2 bg-brand-dark text-white rounded-[8px] px-4 py-[7px] text-[13px] font-medium transition-colors hover:bg-brand-mid;
   }
-  
+
   .pill-btn-outline {
-    @apply inline-flex items-center gap-2 bg-transparent border-[0.5px] border-gray-300 rounded-[8px] px-4 py-[7px] text-[13px] text-[#1A1A1A] transition-colors hover:bg-gray-50;
+    @apply inline-flex items-center gap-2 bg-transparent border-[0.5px] border-gray-300 rounded-[8px] px-4 py-[7px] text-[13px] text-text-primary transition-colors hover:bg-brand-surface;
+  }
+
+  .badge-success {
+    @apply bg-brand-tint text-brand-dark;
+  }
+
+  .badge-danger {
+    @apply bg-red-100 text-red-700;
+  }
+
+  .badge-warning {
+    @apply bg-amber-100 text-amber-800;
+  }
+
+  .badge-info {
+    @apply bg-brand-tint text-brand-mid;
   }
 }
 

@@ -123,14 +123,21 @@ export default async function ClientDashboard() {
                 <span className="text-[11px] font-medium text-text-secondary">Open Workspace</span>
               </Link>
             )}
-            <button className="flex flex-col items-center gap-2 p-4 bg-brand-surface rounded-medium hover:bg-brand-light/30 transition-colors">
+            <Link href="/client/documents" className="flex flex-col items-center gap-2 p-4 bg-brand-surface rounded-medium hover:bg-brand-light/30 transition-colors">
               <span className="text-2xl">💰</span>
               <span className="text-[11px] font-medium text-text-secondary">View Invoices</span>
-            </button>
-            <button className="flex flex-col items-center gap-2 p-4 bg-brand-surface rounded-medium hover:bg-brand-light/30 transition-colors">
-              <span className="text-2xl">📁</span>
-              <span className="text-[11px] font-medium text-text-secondary">Upload Assets</span>
-            </button>
+            </Link>
+            {activeWorkspace ? (
+              <Link href={`/workspace/${activeWorkspace.id}?tab=assets`} className="flex flex-col items-center gap-2 p-4 bg-brand-surface rounded-medium hover:bg-brand-light/30 transition-colors">
+                <span className="text-2xl">📁</span>
+                <span className="text-[11px] font-medium text-text-secondary">View Assets</span>
+              </Link>
+            ) : (
+              <Link href="/client/setup-project" className="flex flex-col items-center gap-2 p-4 bg-brand-surface rounded-medium hover:bg-brand-light/30 transition-colors">
+                <span className="text-2xl">📁</span>
+                <span className="text-[11px] font-medium text-text-secondary">Upload Assets</span>
+              </Link>
+            )}
           </div>
         </div>
 

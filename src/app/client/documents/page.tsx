@@ -77,10 +77,13 @@ export default async function ClientDocuments() {
                   }`}>
                     {doc.status}
                   </span>
-                  <button className="pill-btn-outline text-[12px] px-3 py-1.5">
+                  <Link
+                    href={`/workspace/${doc.workspace_id}?tab=documents`}
+                    className="pill-btn-outline text-[12px] px-3 py-1.5 inline-flex items-center gap-1"
+                  >
                     <IconEye size={16} />
                     View
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>

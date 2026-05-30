@@ -42,16 +42,47 @@ export async function createTask(workspaceId: string, title: string, priority: s
 
 export async function toggleTask(taskId: string, completed: boolean) {
   const supabase = createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
 
-  // Get task details first
   const { data: task } = await supabase
     .from('tasks')
-    .select('title, workspace_id')
+    .select('title, workspace_id, created_by')
     .eq('id', taskId)
     .single()
+
+  if (!task) throw new Error('Task not found')
+
+  const { data: workspace } = await supabase
+    .from('workspaces')
+    .select('freelancer_id, client_id')
+    .eq('id', task.workspace_id)
+    .single()
+
+  if (!workspace) throw new Error('Workspace not found')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const isFreelancerOnWorkspace = workspace.freelancer_id === user.id
+  const { data: memberships } = await supabase
+    .from('workspace_members')
+    .select('role')
+    .eq('workspace_id', task.workspace_id)
+    .eq('user_id', user.id)
+
+  const hasEditorMembership = memberships?.some((m) => m.role === 'editor') ?? false
+  const canToggle =
+    isFreelancerOnWorkspace ||
+    (hasEditorMembership && profile?.role !== 'client')
+
+  if (!canToggle) {
+    throw new Error('Only freelancers can mark tasks complete')
+  }
 
   const { error } = await supabase
     .from('tasks')
@@ -66,18 +97,17 @@ export async function toggleTask(taskId: string, completed: boolean) {
     throw new Error('Failed to update task')
   }
 
-  // Log activity
   await supabase
     .from('activity_log')
     .insert({
-      workspace_id: task?.workspace_id,
+      workspace_id: task.workspace_id,
       user_id: user.id,
-      action: `${completed ? 'completed' : 'reopened'} task: ${task?.title}`,
+      action: `${completed ? 'completed' : 'reopened'} task: ${task.title}`,
       entity_type: 'task',
       entity_id: taskId
     })
 
-  revalidatePath(`/workspace/${task?.workspace_id}`)
+  revalidatePath(`/workspace/${task.workspace_id}`)
 }
 
 export async function sendMessage(workspaceId: string, content: string, fileUrl?: string, fileName?: string) {
@@ -87,7 +117,7 @@ export async function sendMessage(workspaceId: string, content: string, fileUrl?
   if (!user) throw new Error('Unauthorized')
 
   const { error } = await supabase
-    .from('workspace_messages')
+    .from('messages')
     .insert({
       workspace_id: workspaceId,
       sender_id: user.id,
@@ -150,7 +180,7 @@ export async function inviteMember(workspaceId: string, email: string, role: str
   revalidatePath(`/workspace/${workspaceId}`)
 }
 
-export async function removeMember(memberId: string) {
+export async function removeMember(memberId: string, workspaceId: string) {
   const supabase = createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -166,7 +196,7 @@ export async function removeMember(memberId: string) {
     throw new Error('Failed to remove member')
   }
 
-  revalidatePath(`/workspace/[id]`)
+  revalidatePath(`/workspace/${workspaceId}`)
 }
 
 export async function logActivity(workspaceId: string, action: string, entityType?: string, entityId?: string, details?: any) {

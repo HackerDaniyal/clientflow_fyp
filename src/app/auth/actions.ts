@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { dashboardPath, normalizeRole } from '@/lib/auth/role'
 
 export async function login(formData: FormData) {
   const supabase = createClient()
@@ -33,7 +34,7 @@ export async function login(formData: FormData) {
     return redirect('/auth/login?error=Profile not found. Please contact support.')
   }
 
-  const role = profile.role
+  const role = normalizeRole(profile.role)
 
   if (!role) {
     console.error('Role is undefined for user:', data.user.id)
@@ -41,13 +42,12 @@ export async function login(formData: FormData) {
   }
 
   revalidatePath('/', 'layout')
-  
-  // Use the redirect URL from middleware if available, otherwise go to dashboard
-  if (redirectTo && redirectTo.startsWith('/')) {
+
+  if (redirectTo && redirectTo.startsWith(`/${role}`)) {
     return redirect(redirectTo)
   }
-  
-  redirect(`/${role}/dashboard`)
+
+  redirect(dashboardPath(role))
 }
 
 export async function signup(formData: FormData) {
@@ -55,8 +55,16 @@ export async function signup(formData: FormData) {
 
   const email = formData.get('email') as string
   const password = formData.get('password') as string
-  const role = formData.get('role') as string
-  const fullName = formData.get('fullName') as string
+  const role = normalizeRole(formData.get('role') as string)
+  const fullName = (formData.get('fullName') as string)?.trim()
+
+  if (!role || (role !== 'client' && role !== 'freelancer')) {
+    return redirect('/auth/signup?error=' + encodeURIComponent('Please select Client or Freelancer account type.'))
+  }
+
+  if (!fullName) {
+    return redirect('/auth/signup?error=' + encodeURIComponent('Full name is required.'))
+  }
 
   const { error, data } = await supabase.auth.signUp({
     email,
@@ -70,25 +78,43 @@ export async function signup(formData: FormData) {
   })
 
   if (error) {
-    return redirect('/auth/signup?error=' + error.message)
+    return redirect('/auth/signup?error=' + encodeURIComponent(error.message))
   }
 
-  // Auto-login after signup (email confirmation is disabled)
-  if (data.user) {
-    const { error: loginError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (!loginError) {
-      revalidatePath('/', 'layout')
-      redirect(`/${role}/dashboard`)
-    }
+  if (!data.user) {
+    return redirect('/auth/login?message=' + encodeURIComponent('Account created! Please sign in.'))
   }
 
-  // Fallback to login page if auto-login fails
+  // Ensure profile has the correct role (trigger may lag or default to freelancer)
+  await supabase.from('profiles').upsert(
+    {
+      id: data.user.id,
+      role,
+      full_name: fullName,
+    },
+    { onConflict: 'id' }
+  )
+
+  const { error: loginError } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
+
+  if (loginError) {
+    revalidatePath('/', 'layout')
+    return redirect('/auth/login?message=' + encodeURIComponent('Account created! Please sign in.'))
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', data.user.id)
+    .single()
+
+  const finalRole = normalizeRole(profile?.role) || role
+
   revalidatePath('/', 'layout')
-  redirect('/auth/login?message=Account created! Please login.')
+  redirect(dashboardPath(finalRole))
 }
 
 export async function logout() {

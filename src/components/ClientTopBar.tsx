@@ -17,6 +17,7 @@ import {
   IconLink,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import NotificationsBell from "@/components/NotificationsBell";
 
 const navItems = [
   { label: "Dashboard", href: "/client/dashboard", icon: IconLayoutDashboard },
@@ -26,6 +27,7 @@ const navItems = [
   { label: "Documents", href: "/client/documents", icon: IconFileText },
   { label: "To-Do", href: "/client/todos", icon: IconChecklist },
   { label: "Chat", href: "/client/chat", icon: IconMessageCircle },
+  { label: "Notifications", href: "/client/notifications", icon: IconBell },
 ];
 
 export default function ClientTopBar() {
@@ -98,11 +100,7 @@ export default function ClientTopBar() {
           {/* Right side: Notifications + Profile */}
           <div className="flex items-center gap-3">
             {/* Notification bell */}
-            <button className="relative p-2 text-text-secondary hover:bg-brand-light/30 rounded-lg transition-colors">
-              <IconBell size={18} stroke={2} />
-              {/* Badge placeholder - would connect to notifications table */}
-              <span className="absolute top-1 right-1 w-2 h-2 bg-status-overdue rounded-full"></span>
-            </button>
+            <NotificationsBell href="/client/notifications" />
 
             {/* Profile dropdown */}
             <div className="relative">

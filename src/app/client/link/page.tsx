@@ -14,7 +14,12 @@ export default function LinkPage() {
   async function handleSubmit(formData: FormData) {
     setPending(true);
     setError(null);
-    
+
+    const code = (formData.get("code") as string)?.trim().toUpperCase();
+    if (code) {
+      formData.set("code", code);
+    }
+
     const result = await linkFreelancer(formData);
     
     if (result?.error) {

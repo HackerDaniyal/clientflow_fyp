@@ -9,8 +9,22 @@ export async function generateReferralCode() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
 
-  // Simple alphanumeric 8-char code generator
-  const code = 'FL-' + Math.random().toString(36).substring(2, 8).toUpperCase()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'freelancer') {
+    throw new Error('Only freelancers can generate referral codes')
+  }
+
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let suffix = ''
+  for (let i = 0; i < 6; i++) {
+    suffix += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  const code = `FL-${suffix}`
 
   const { error } = await supabase
     .from('referral_codes')

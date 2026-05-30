@@ -24,9 +24,22 @@ interface ProjectFormData {
   special_requirements: string;
 }
 
-export async function submitProjectRequest(formData: ProjectFormData) {
+interface UploadedFile {
+  name: string;
+  path: string;
+  url: string;
+  size: number;
+}
+
+interface FormFiles {
+  logo: UploadedFile | null;
+  references: UploadedFile[];
+  documents: UploadedFile[];
+}
+
+export async function submitProjectRequest(formData: ProjectFormData, files: FormFiles) {
   const supabase = createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
 
@@ -53,7 +66,7 @@ export async function submitProjectRequest(formData: ProjectFormData) {
     throw new Error('You already have a pending project request')
   }
 
-  // 3. Create project request with all form data as JSONB
+  // 3. Create project request with all form data + file URLs as JSONB
   const { data: request, error: requestError } = await supabase
     .from('project_requests')
     .insert({
@@ -77,7 +90,12 @@ export async function submitProjectRequest(formData: ProjectFormData) {
         platforms: formData.platforms,
         technology_preferences: formData.technology_preferences,
         integrations: formData.integrations,
-        special_requirements: formData.special_requirements
+        special_requirements: formData.special_requirements,
+        assets: {
+          logo: files.logo ? { name: files.logo.name, url: files.logo.url, path: files.logo.path } : null,
+          references: files.references.map(f => ({ name: f.name, url: f.url, path: f.path })),
+          documents: files.documents.map(f => ({ name: f.name, url: f.url, path: f.path }))
+        }
       },
       submitted_at: new Date().toISOString()
     })
@@ -101,6 +119,6 @@ export async function submitProjectRequest(formData: ProjectFormData) {
     })
 
   revalidatePath('/client/dashboard')
-  redirect('/client/dashboard?message=Project request submitted successfully!')
+  revalidatePath('/freelancer/requests')
 }
 

@@ -1,12 +1,15 @@
 import React from "react";
 import ClientTopBar from "@/components/ClientTopBar";
-import AIAssistant from "@/components/AIAssistant";
+import AIAssistant from "@/components/AIAssistantLazy";
+import { requireRole } from "@/lib/auth/require-role";
 
-export default function ClientLayout({
+export default async function ClientLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await requireRole("client");
+
   return (
     <div className="min-h-screen bg-brand-surface flex flex-col">
       <ClientTopBar />

@@ -16,7 +16,9 @@ import {
   IconChevronDown,
   IconSparkles,
   IconLink,
-  IconInbox
+  IconInbox,
+  IconBell,
+  IconLayoutKanban
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 
@@ -35,12 +37,14 @@ interface NavItem {
 const navItems: Record<"freelancer" | "client" | "admin", NavItem[]> = {
   freelancer: [
     { label: "Dashboard", href: "/freelancer/dashboard", icon: IconLayoutDashboard },
-    { label: "Requests", href: "/freelancer/requests", icon: IconInbox, badge: 0 },
+    { label: "Requests", href: "/freelancer/requests", icon: IconInbox },
+    { label: "Pipeline", href: "/freelancer/pipeline", icon: IconLayoutKanban },
     { label: "Referrals", href: "/freelancer/referrals", icon: IconLink },
     { label: "Clients", href: "/freelancer/clients", icon: IconUsers, hasSubmenu: true },
     { label: "Workspaces", href: "/freelancer/workspaces", icon: IconBriefcase },
     { label: "Invoices", href: "/freelancer/invoices", icon: IconFileInvoice },
-    { label: "Messages", href: "/freelancer/messages", icon: IconMessageCircle, badge: 3 },
+    { label: "Messages", href: "/freelancer/messages", icon: IconMessageCircle },
+    { label: "Notifications", href: "/freelancer/notifications", icon: IconBell },
     { label: "Settings", href: "/freelancer/settings", icon: IconSettings },
   ],
   client: [
@@ -112,7 +116,13 @@ export default function Sidebar({ role }: SidebarProps) {
         <div className="bg-[#8BC38A22] border-[0.5px] border-brand-accent rounded-medium p-3 flex flex-col gap-2 items-center text-center">
           <IconSparkles size={18} stroke={2} className="text-brand-dark" />
           <span className="text-[11px] font-medium text-brand-dark">Need help?</span>
-          <button className="text-[10px] text-brand-dark underline opacity-70">Ask Gemini</button>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("open-ai-assistant"))}
+            className="text-[10px] text-brand-dark underline opacity-70 hover:opacity-100"
+          >
+            Ask Gemini
+          </button>
         </div>
       </div>
     </aside>

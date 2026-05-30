@@ -2,29 +2,56 @@ import React from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { IconUsers, IconMail, IconCalendar, IconArrowRight, IconInbox } from "@tabler/icons-react";
+import { IconUsers, IconMail, IconCalendar, IconArrowRight } from "@tabler/icons-react";
+
+type ClientProfile = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  created_at: string;
+};
 
 export default async function FreelancerClients() {
   const supabase = createClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
-  // Fetch clients linked to this freelancer via referral_codes
-  const { data: clients } = await supabase
-    .from("profiles")
-    .select("*, referral_codes!referral_codes_client_id_fkey(freelancer_id)")
-    .eq("role", "client")
-    .eq("referral_codes.freelancer_id", user.id);
+  const { data: links } = await supabase
+    .from("client_freelancer_links")
+    .select(
+      `
+      id,
+      status,
+      created_at,
+      client:profiles!client_freelancer_links_client_id_fkey(id, full_name, email, created_at)
+    `
+    )
+    .eq("freelancer_id", user.id)
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
+
+  const clients: ClientProfile[] = [];
+  for (const link of links ?? []) {
+    const client = link.client as ClientProfile | ClientProfile[] | null;
+    if (!client) continue;
+    if (Array.isArray(client)) {
+      if (client[0]) clients.push(client[0]);
+    } else {
+      clients.push(client);
+    }
+  }
 
   return (
     <div className="space-y-8">
       <header>
         <h1 className="text-2xl font-medium text-brand-dark">My Clients</h1>
-        <p className="text-sm text-text-secondary">Manage clients who joined using your referral code.</p>
+        <p className="text-sm text-text-secondary">Manage clients linked via your referral code.</p>
       </header>
 
-      {clients && clients.length > 0 ? (
+      {clients.length > 0 ? (
         <div className="space-y-4">
           {clients.map((client) => (
             <div key={client.id} className="card bg-white hover:shadow-md transition-shadow">
@@ -47,11 +74,8 @@ export default async function FreelancerClients() {
                     </div>
                   </div>
                 </div>
-                <Link
-                  href={`/freelancer/dashboard`}
-                  className="pill-btn-outline text-[12px] px-3 py-1.5"
-                >
-                  View
+                <Link href="/freelancer/workspaces" className="pill-btn-outline text-[12px] px-3 py-1.5">
+                  View Workspaces
                   <IconArrowRight size={14} />
                 </Link>
               </div>

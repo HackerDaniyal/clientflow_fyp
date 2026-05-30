@@ -2,11 +2,14 @@ import React from "react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { IconSettings, IconUser, IconMail, IconBuilding } from "@tabler/icons-react";
+import ProfileSettingsForm from "@/components/ProfileSettingsForm";
 
 export default async function FreelancerSettings() {
   const supabase = createClient();
-  
-  const { data: { user } } = await supabase.auth.getUser();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
 
   const { data: profile } = await supabase
@@ -23,20 +26,16 @@ export default async function FreelancerSettings() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Profile Card */}
         <div className="card bg-white">
           <h3 className="text-lg font-semibold text-brand-dark mb-4 flex items-center gap-2">
             <IconUser size={20} />
             Profile Information
           </h3>
-          <div className="space-y-4">
-            <div>
-              <label className="text-[12px] font-medium text-text-secondary mb-1 block">Full Name</label>
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-brand-surface rounded-lg border border-brand-light">
-                <IconUser size={16} className="text-text-tertiary" />
-                <span className="text-[13px] text-brand-dark">{profile?.full_name || "Not set"}</span>
-              </div>
-            </div>
+          <ProfileSettingsForm
+            fullName={profile?.full_name || ""}
+            bio={profile?.bio || ""}
+          />
+          <div className="space-y-4 pt-4 mt-4 border-t border-brand-light">
             <div>
               <label className="text-[12px] font-medium text-text-secondary mb-1 block">Email</label>
               <div className="flex items-center gap-2 px-4 py-2.5 bg-brand-surface rounded-lg border border-brand-light">
@@ -54,7 +53,6 @@ export default async function FreelancerSettings() {
           </div>
         </div>
 
-        {/* Account Stats */}
         <div className="card bg-white">
           <h3 className="text-lg font-semibold text-brand-dark mb-4 flex items-center gap-2">
             <IconSettings size={20} />

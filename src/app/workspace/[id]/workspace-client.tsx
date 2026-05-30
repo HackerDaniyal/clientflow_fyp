@@ -20,8 +20,9 @@ import {
   IconEye
 } from "@tabler/icons-react";
 import { createClient } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
-import { createTask, toggleTask, sendMessage, inviteMember, removeMember, logActivity, createDocument, sendDocument, deleteDocument } from "./actions";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createTask, toggleTask, inviteMember, removeMember, logActivity, createDocument, sendDocument, deleteDocument } from "./actions";
+import WorkspaceChat, { type ChatMessage } from "@/components/workspace/WorkspaceChat";
 
 interface WorkspaceClientProps {
   workspace: any;
@@ -32,6 +33,10 @@ interface WorkspaceClientProps {
   userRole: string;
   workspaceId: string;
   documents?: any[];
+  currentUserId: string;
+  accountRole: string;
+  canCreateTasks: boolean;
+  canToggleTasks: boolean;
 }
 
 type TabType = "overview" | "assets" | "todo" | "chat" | "documents" | "members";
@@ -44,23 +49,49 @@ export default function WorkspaceClient({
   activityLog: initialActivityLog,
   userRole,
   workspaceId,
-  documents: initialDocuments = []
+  documents: initialDocuments = [],
+  currentUserId,
+  accountRole,
+  canCreateTasks,
+  canToggleTasks,
 }: WorkspaceClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
-  const [activeTab, setActiveTab] = useState<TabType>("overview");
+  const initialTab = (searchParams.get("tab") as TabType) || "overview";
+  const [activeTab, setActiveTab] = useState<TabType>(
+    ["overview", "assets", "todo", "chat", "documents", "members"].includes(initialTab)
+      ? initialTab
+      : "overview"
+  );
   const [tasks, setTasks] = useState(initialTasks);
-  const [messages, setMessages] = useState(initialMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages as ChatMessage[]);
   const [members, setMembers] = useState(initialMembers);
   const [activityLog, setActivityLog] = useState(initialActivityLog);
   const [documents, setDocuments] = useState(initialDocuments);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState("medium");
-  const [newMessage, setNewMessage] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [viewingDocument, setViewingDocument] = useState<any | null>(null);
   const [selectedDocType, setSelectedDocType] = useState<'proposal' | 'invoice' | 'contract'>('proposal');
+  const [docTitle, setDocTitle] = useState("");
+  const [docAmount, setDocAmount] = useState("");
+  const [docDueDate, setDocDueDate] = useState("");
+  const [docDescription, setDocDescription] = useState("");
+
+  type AssetFile = { name: string; url: string; path?: string };
+  const projectAssets: { label: string; files: AssetFile[] }[] = (() => {
+    const assets = workspace.form_data?.assets;
+    if (!assets) return [];
+    const items: { label: string; files: AssetFile[] }[] = [];
+    if (assets.logo?.url) items.push({ label: "Logo", files: [assets.logo] });
+    if (assets.references?.length) items.push({ label: "References", files: assets.references });
+    if (assets.documents?.length) items.push({ label: "Documents", files: assets.documents });
+    return items;
+  })();
+  const allAssetFiles = projectAssets.flatMap((g) => g.files);
 
   // Realtime subscriptions
   useEffect(() => {
@@ -73,19 +104,6 @@ export default function WorkspaceClient({
         (payload) => {
           console.log('Task update:', payload);
           fetchTasks();
-        }
-      )
-      .subscribe();
-
-    // Subscribe to messages
-    const messagesChannel = supabase
-      .channel('messages')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'workspace_messages', filter: `workspace_id=eq.${workspaceId}` },
-        (payload) => {
-          console.log('New message:', payload);
-          fetchMessages();
         }
       )
       .subscribe();
@@ -104,7 +122,6 @@ export default function WorkspaceClient({
 
     return () => {
       supabase.removeChannel(tasksChannel);
-      supabase.removeChannel(messagesChannel);
       supabase.removeChannel(activityChannel);
     };
   }, [workspaceId]);
@@ -118,20 +135,10 @@ export default function WorkspaceClient({
     if (data) setTasks(data);
   };
 
-  const fetchMessages = async () => {
-    const { data } = await supabase
-      .from("workspace_messages")
-      .select("*, sender:sender_id(full_name, avatar_url)")
-      .eq("workspace_id", workspaceId)
-      .order("created_at", { ascending: true })
-      .limit(100);
-    if (data) setMessages(data);
-  };
-
   const fetchActivityLog = async () => {
     const { data } = await supabase
       .from("activity_log")
-      .select("*, user:profiles(full_name, avatar_url)")
+      .select("*, user:user_id(full_name, avatar_url)")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
       .limit(50);
@@ -152,19 +159,51 @@ export default function WorkspaceClient({
   };
 
   const handleToggleTask = async (taskId: string, completed: boolean) => {
-    await toggleTask(taskId, completed);
-    await fetchTasks();
+    try {
+      await toggleTask(taskId, completed);
+      await fetchTasks();
+    } catch {
+      alert("Failed to update task");
+    }
   };
 
-  const handleSendMessage = async () => {
-    if (!newMessage.trim()) return;
+  const fetchMembers = async () => {
+    const { data } = await supabase
+      .from("workspace_members")
+      .select("*, profiles:user_id(full_name, email, avatar_url)")
+      .eq("workspace_id", workspaceId);
+    if (data) setMembers(data);
+  };
+
+  const fetchDocuments = async () => {
+    const { data } = await supabase
+      .from("workspace_documents")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false });
+    if (data) setDocuments(data);
+  };
+
+  const handleCreateDocument = async () => {
+    if (!docTitle.trim()) return;
     setLoading(true);
     try {
-      await sendMessage(workspaceId, newMessage);
-      setNewMessage("");
-      await fetchMessages();
-    } catch (error) {
-      alert("Failed to send message");
+      await createDocument(
+        workspaceId,
+        selectedDocType,
+        docTitle,
+        { description: docDescription },
+        docAmount ? parseFloat(docAmount) : undefined,
+        docDueDate || undefined
+      );
+      setShowDocumentModal(false);
+      setDocTitle("");
+      setDocAmount("");
+      setDocDueDate("");
+      setDocDescription("");
+      await fetchDocuments();
+    } catch {
+      alert("Failed to create document");
     }
     setLoading(false);
   };
@@ -173,11 +212,12 @@ export default function WorkspaceClient({
     if (!inviteEmail.trim()) return;
     setLoading(true);
     try {
-      await inviteMember(workspaceId, inviteEmail, userRole === "editor" ? "viewer" : "editor");
+      await inviteMember(workspaceId, inviteEmail, "viewer");
       setInviteEmail("");
-      alert("Invitation sent!");
-    } catch (error) {
-      alert("Failed to invite member");
+      await fetchMembers();
+      alert("Member invited!");
+    } catch {
+      alert("Failed to invite member. Check the email is registered.");
     }
     setLoading(false);
   };
@@ -185,11 +225,17 @@ export default function WorkspaceClient({
   const handleRemoveMember = async (memberId: string) => {
     if (!confirm("Remove this member?")) return;
     try {
-      await removeMember(memberId);
-      setMembers(members.filter(m => m.id !== memberId));
-    } catch (error) {
+      await removeMember(memberId, workspaceId);
+      setMembers(members.filter((m) => m.id !== memberId));
+    } catch {
       alert("Failed to remove member");
     }
+  };
+
+  const handleDownloadAllAssets = () => {
+    allAssetFiles.forEach((file) => {
+      if (file.url) window.open(file.url, "_blank");
+    });
   };
 
   const tabs = [
@@ -338,22 +384,53 @@ export default function WorkspaceClient({
 
         {/* Assets Tab */}
         {activeTab === "assets" && (
-          <div className="card bg-white p-8 text-center">
-            <IconFiles size={64} className="mx-auto text-text-tertiary opacity-20 mb-4" />
-            <h3 className="text-lg font-medium text-brand-dark mb-2">Project Assets</h3>
-            <p className="text-text-secondary mb-6">Assets will be available once uploaded.</p>
-            <button className="pill-btn-outline inline-flex items-center gap-2">
-              <IconDownload size={18} />
-              Download All (ZIP)
-            </button>
+          <div className="space-y-6">
+            {projectAssets.length > 0 ? (
+              <>
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleDownloadAllAssets}
+                    className="pill-btn-outline inline-flex items-center gap-2"
+                  >
+                    <IconDownload size={18} />
+                    Open All Files
+                  </button>
+                </div>
+                {projectAssets.map((group) => (
+                  <div key={group.label} className="card bg-white p-6">
+                    <h3 className="text-lg font-semibold text-brand-dark mb-4">{group.label}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {group.files.map((file, idx) => (
+                        <a
+                          key={`${file.path || file.url}-${idx}`}
+                          href={file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between p-4 rounded-lg border border-brand-light/50 hover:border-brand-accent transition-colors"
+                        >
+                          <span className="text-[14px] text-brand-dark truncate">{file.name}</span>
+                          <IconDownload size={16} className="text-brand-accent shrink-0" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <div className="card bg-white p-8 text-center">
+                <IconFiles size={64} className="mx-auto text-text-tertiary opacity-20 mb-4" />
+                <h3 className="text-lg font-medium text-brand-dark mb-2">Project Assets</h3>
+                <p className="text-text-secondary">No assets uploaded with this project yet.</p>
+              </div>
+            )}
           </div>
         )}
 
         {/* To-Do Tab */}
         {activeTab === "todo" && (
           <div className="space-y-6">
-            {/* Add Task Form (Only for editors) */}
-            {userRole === "editor" && (
+            {/* Add Task Form */}
+            {canCreateTasks && (
               <div className="card bg-white p-6">
                 <h3 className="text-lg font-semibold text-brand-dark mb-4">Add New Task</h3>
                 <div className="flex gap-3">
@@ -391,7 +468,14 @@ export default function WorkspaceClient({
             <div className="card bg-white p-6">
               <h3 className="text-lg font-semibold text-brand-dark mb-4">Tasks ({tasks.length})</h3>
               {tasks.length === 0 ? (
-                <p className="text-text-secondary text-center py-8">No tasks yet. {userRole === "editor" && "Create one above!"}</p>
+                <p className="text-text-secondary text-center py-8">
+                  No tasks yet.{" "}
+                  {canCreateTasks
+                    ? accountRole === "client"
+                      ? "Add a task for your freelancer."
+                      : "Create one above!"
+                    : ""}
+                </p>
               ) : (
                 <div className="space-y-3">
                   {tasks.map((task) => (
@@ -403,14 +487,16 @@ export default function WorkspaceClient({
                           : "bg-white border-brand-light/50 hover:border-brand-accent"
                       }`}
                     >
-                      {userRole === "editor" && (
+                      {canToggleTasks && (
                         <button
+                          type="button"
                           onClick={() => handleToggleTask(task.id, task.status === "completed")}
                           className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                             task.status === "completed"
-                              ? "bg-green-500 border-green-500 text-white"
+                              ? "bg-brand-mid border-brand-mid text-white"
                               : "border-brand-light hover:border-brand-accent"
                           }`}
+                          aria-label={task.status === "completed" ? "Mark incomplete" : "Mark complete"}
                         >
                           {task.status === "completed" && <IconCheck size={14} />}
                         </button>
@@ -418,6 +504,11 @@ export default function WorkspaceClient({
                       <div className="flex-1">
                         <p className={`text-[14px] font-medium text-brand-dark ${task.status === "completed" ? "line-through" : ""}`}>
                           {task.title}
+                        </p>
+                        <p className="text-[11px] text-text-tertiary mt-0.5">
+                          {task.creator?.full_name
+                            ? `Added by ${task.creator.full_name}`
+                            : "Added by team"}
                         </p>
                         {task.due_date && (
                           <p className="text-[12px] text-text-tertiary mt-1">
@@ -438,65 +529,14 @@ export default function WorkspaceClient({
 
         {/* Chat Tab */}
         {activeTab === "chat" && (
-          <div className="card bg-white flex flex-col" style={{ height: "calc(100vh - 300px)" }}>
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {messages.length === 0 ? (
-                <div className="text-center py-12">
-                  <IconMessageCircle size={48} className="mx-auto text-text-tertiary opacity-20 mb-3" />
-                  <p className="text-text-secondary">No messages yet. Start the conversation!</p>
-                </div>
-              ) : (
-                messages.map((message) => (
-                  <div key={message.id} className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-brand-accent/20 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-[12px] font-medium text-brand-accent">
-                        {message.sender?.full_name?.charAt(0) || "U"}
-                      </span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[13px] font-medium text-brand-dark">
-                          {message.sender?.full_name || "Unknown"}
-                        </span>
-                        <span className="text-[11px] text-text-tertiary">
-                          {new Date(message.created_at).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <p className="text-[14px] text-text-secondary bg-brand-surface rounded-lg px-4 py-2 inline-block">
-                        {message.content}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Message Input */}
-            <div className="border-t border-brand-light/50 p-4">
-              <div className="flex gap-3">
-                <button className="p-2.5 hover:bg-brand-light/30 rounded-lg transition-colors">
-                  <IconPaperclip size={20} className="text-text-secondary" />
-                </button>
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1 bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
-                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={loading || !newMessage.trim()}
-                  className="pill-btn bg-brand-accent text-white disabled:opacity-50"
-                >
-                  <IconSend size={18} />
-                </button>
-              </div>
-            </div>
-          </div>
+          <WorkspaceChat
+            workspaceId={workspaceId}
+            initialMessages={messages}
+            canSend={userRole === "editor"}
+            onMessagesUpdated={setMessages}
+          />
         )}
+
 
         {/* Documents Tab */}
         {activeTab === "documents" && (
@@ -592,7 +632,10 @@ export default function WorkspaceClient({
                         </span>
                         {userRole === "editor" && doc.status === 'draft' && (
                           <button
-                            onClick={() => sendDocument(doc.id)}
+                            onClick={async () => {
+                              await sendDocument(doc.id);
+                              await fetchDocuments();
+                            }}
                             className="p-2 hover:bg-brand-accent/10 text-brand-accent rounded-lg transition-colors"
                             title="Send to client"
                           >
@@ -601,16 +644,31 @@ export default function WorkspaceClient({
                         )}
                         {userRole === "editor" && (
                           <button
-                            onClick={() => deleteDocument(doc.id, workspaceId)}
+                            onClick={async () => {
+                              await deleteDocument(doc.id, workspaceId);
+                              await fetchDocuments();
+                            }}
                             className="p-2 hover:bg-red-100 text-text-secondary hover:text-red-600 rounded-lg transition-colors"
                             title="Delete"
                           >
                             <IconTrash size={16} />
                           </button>
                         )}
-                        <button className="p-2 hover:bg-brand-light/30 text-text-secondary rounded-lg transition-colors" title="View">
+                        <button
+                          onClick={() => setViewingDocument(doc)}
+                          className="p-2 hover:bg-brand-light/30 text-text-secondary rounded-lg transition-colors"
+                          title="View"
+                        >
                           <IconEye size={16} />
                         </button>
+                        <a
+                          href={`/api/documents/${doc.id}/export`}
+                          className="p-2 hover:bg-brand-tint text-brand-mid rounded-lg transition-colors inline-flex"
+                          title="Export document"
+                          download
+                        >
+                          <IconDownload size={16} />
+                        </a>
                       </div>
                     </div>
                   ))}
@@ -688,6 +746,116 @@ export default function WorkspaceClient({
           </div>
         )}
       </div>
+
+      {/* Create Document Modal */}
+      {showDocumentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-brand-dark mb-4 capitalize">
+              New {selectedDocType}
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="input-label block mb-1 text-[12px] text-text-secondary">Title</label>
+                <input
+                  type="text"
+                  value={docTitle}
+                  onChange={(e) => setDocTitle(e.target.value)}
+                  className="w-full bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
+                  placeholder={`${selectedDocType} title`}
+                />
+              </div>
+              {selectedDocType === "invoice" && (
+                <>
+                  <div>
+                    <label className="block mb-1 text-[12px] text-text-secondary">Amount ($)</label>
+                    <input
+                      type="number"
+                      value={docAmount}
+                      onChange={(e) => setDocAmount(e.target.value)}
+                      className="w-full bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block mb-1 text-[12px] text-text-secondary">Due date</label>
+                    <input
+                      type="date"
+                      value={docDueDate}
+                      onChange={(e) => setDocDueDate(e.target.value)}
+                      className="w-full bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
+                    />
+                  </div>
+                </>
+              )}
+              <div>
+                <label className="block mb-1 text-[12px] text-text-secondary">Description</label>
+                <textarea
+                  value={docDescription}
+                  onChange={(e) => setDocDescription(e.target.value)}
+                  rows={3}
+                  className="w-full bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowDocumentModal(false)}
+                className="flex-1 pill-btn-outline"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateDocument}
+                disabled={loading || !docTitle.trim()}
+                className="flex-1 pill-btn bg-brand-accent text-white disabled:opacity-50"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Document Modal */}
+      {viewingDocument && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-brand-dark">{viewingDocument.title}</h3>
+                <p className="text-[12px] text-text-tertiary capitalize">
+                  {viewingDocument.type} · {viewingDocument.document_number} · {viewingDocument.status}
+                </p>
+              </div>
+              <button
+                onClick={() => setViewingDocument(null)}
+                className="text-text-tertiary hover:text-brand-dark text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            {viewingDocument.amount != null && (
+              <p className="text-2xl font-semibold text-brand-dark mb-3">${viewingDocument.amount}</p>
+            )}
+            {viewingDocument.content?.description && (
+              <p className="text-[14px] text-text-secondary whitespace-pre-wrap">
+                {viewingDocument.content.description}
+              </p>
+            )}
+            {viewingDocument.pdf_url && (
+              <a
+                href={viewingDocument.pdf_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="pill-btn inline-flex items-center gap-2 mt-4"
+              >
+                <IconDownload size={16} />
+                Download PDF
+              </a>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -16,7 +16,7 @@ export default async function FreelancerMessages() {
     .select(`
       *,
       client:profiles!workspaces_client_id_fkey(full_name),
-      messages:workspace_messages(content, created_at, sender:profiles(full_name))
+      messages(content, created_at, sender:sender_id(full_name))
     `)
     .eq("freelancer_id", user.id)
     .order("created_at", { ascending: false });

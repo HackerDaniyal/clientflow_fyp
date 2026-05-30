@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { dashboardPath, normalizeRole } from '@/lib/auth/role'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -26,12 +27,15 @@ export async function GET(request: Request) {
         .eq('id', user.id)
         .single()
 
-      // Determine role - fallback to user_metadata if profile fetch fails
-      const role = profile?.role || user.user_metadata?.role || 'freelancer'
-      
-      console.log('Email confirmed! User:', user.email, 'Role:', role)
-      
-      const forwardTo = next !== '/' ? next : `/${role}/dashboard`
+      const role =
+        normalizeRole(profile?.role) ||
+        normalizeRole(user.user_metadata?.role as string | undefined)
+
+      if (!role) {
+        return NextResponse.redirect(`${origin}/auth/signup?error=${encodeURIComponent('Account role not found. Please sign up again and choose Client or Freelancer.')}`)
+      }
+
+      const forwardTo = next !== '/' && next.startsWith(`/${role}`) ? next : dashboardPath(role)
       
       return NextResponse.redirect(`${origin}${forwardTo}`)
     } else {

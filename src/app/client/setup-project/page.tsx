@@ -1,53 +1,70 @@
 "use client";
 
-import React, { useState } from "react";
-import { 
-  IconRocket, 
-  IconArrowRight, 
-  IconArrowLeft, 
+import React, { useState, useCallback } from "react";
+import {
+  IconRocket,
+  IconArrowRight,
+  IconArrowLeft,
   IconCheck,
   IconBuilding,
   IconPalette,
   IconCode,
   IconFileText,
   IconX,
-  IconPlus
+  IconPlus,
+  IconUpload,
+  IconFile,
+  IconTrash,
+  IconPhoto,
+  IconCircleCheck,
+  IconLoader2
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { submitProjectRequest } from "./actions";
+import { createClient } from "@/lib/supabase";
 
 const STEPS = ["Project Basics", "Business Info", "Branding & Assets", "Technical", "Review"];
 
+interface UploadedFile {
+  name: string;
+  path: string;
+  url: string;
+  size: number;
+}
+
 interface FormData {
-  // Step 1: Project Basics
   project_name: string;
   project_type: string;
   description: string;
   budget_range: string;
   timeline_start: string;
   timeline_end: string;
-  
-  // Step 2: Business Information
   business_name: string;
   industry: string;
   target_audience: string;
   competitors: string[];
   social_media: string;
-  
-  // Step 3: Branding & Assets
   brand_colors: string[];
   brand_fonts: string;
-  
-  // Step 4: Technical Requirements
   platforms: string[];
   technology_preferences: string;
   integrations: string;
   special_requirements: string;
 }
 
+interface FormFiles {
+  logo: UploadedFile | null;
+  references: UploadedFile[];
+  documents: UploadedFile[];
+}
+
 export default function SetupProjectPage() {
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const supabase = createClient();
+
   const [formData, setFormData] = useState<FormData>({
     project_name: "",
     project_type: "",
@@ -66,6 +83,12 @@ export default function SetupProjectPage() {
     technology_preferences: "",
     integrations: "",
     special_requirements: ""
+  });
+
+  const [files, setFiles] = useState<FormFiles>({
+    logo: null,
+    references: [],
+    documents: []
   });
 
   const updateField = (field: keyof FormData, value: any) => {
@@ -114,9 +137,10 @@ export default function SetupProjectPage() {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      await submitProjectRequest(formData);
-    } catch (error) {
-      alert("Failed to submit project request. Please try again.");
+      await submitProjectRequest(formData, files);
+      setSubmitted(true);
+    } catch (error: any) {
+      alert(error.message || "Failed to submit project request. Please try again.");
       setIsSubmitting(false);
     }
   };
@@ -153,6 +177,188 @@ export default function SetupProjectPage() {
   const removeBrandColor = (index: number) => {
     updateField("brand_colors", formData.brand_colors.filter((_, i) => i !== index));
   };
+
+  // File upload handler
+  const uploadFile = useCallback(async (file: File, folder: string): Promise<UploadedFile | null> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert("You must be logged in to upload files");
+      return null;
+    }
+
+    const ext = file.name.split('.').pop();
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+    const filePath = `${user.id}/${folder}/${fileName}`;
+
+    setUploading(file.name);
+
+    const { error: uploadError } = await supabase.storage
+      .from('project-assets')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    setUploading(null);
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      alert(`Failed to upload ${file.name}: ${uploadError.message}`);
+      return null;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('project-assets')
+      .getPublicUrl(filePath);
+
+    return {
+      name: file.name,
+      path: filePath,
+      url: publicUrl,
+      size: file.size
+    };
+  }, [supabase]);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Logo must be under 10MB");
+      return;
+    }
+
+    const uploaded = await uploadFile(file, 'logos');
+    if (uploaded) {
+      setFiles(prev => ({ ...prev, logo: uploaded }));
+    }
+  };
+
+  const handleReferenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || []);
+    const remainingSlots = 20 - files.references.length;
+    const toUpload = selectedFiles.slice(0, remainingSlots);
+
+    const totalSize = files.references.reduce((s, f) => s + f.size, 0) + toUpload.reduce((s, f) => s + f.size, 0);
+    if (totalSize > 50 * 1024 * 1024) {
+      alert("Total reference images must be under 50MB");
+      return;
+    }
+
+    for (const file of toUpload) {
+      const uploaded = await uploadFile(file, 'references');
+      if (uploaded) {
+        setFiles(prev => ({ ...prev, references: [...prev.references, uploaded] }));
+      }
+    }
+  };
+
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || []);
+    const remainingSlots = 10 - files.documents.length;
+    const toUpload = selectedFiles.slice(0, remainingSlots);
+
+    for (const file of toUpload) {
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`${file.name} is too large. Max 10MB per document.`);
+        continue;
+      }
+      const uploaded = await uploadFile(file, 'documents');
+      if (uploaded) {
+        setFiles(prev => ({ ...prev, documents: [...prev.documents, uploaded] }));
+      }
+    }
+  };
+
+  const removeFile = (type: 'logo' | 'references' | 'documents', index?: number) => {
+    if (type === 'logo') {
+      setFiles(prev => ({ ...prev, logo: null }));
+    } else if (index !== undefined) {
+      setFiles(prev => ({
+        ...prev,
+        [type]: prev[type].filter((_, i) => i !== index)
+      }));
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  // Confirmation screen after successful submit
+  if (submitted) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center p-6">
+        <div className="w-full max-w-[480px] space-y-8 text-center">
+          <div className="inline-flex w-20 h-20 bg-green-100 rounded-full items-center justify-center mb-2">
+            <IconCircleCheck size={40} stroke={2} className="text-green-600" />
+          </div>
+
+          <div>
+            <h1 className="text-2xl font-medium text-brand-dark">Request Submitted!</h1>
+            <p className="text-sm text-text-secondary mt-2">
+              Your project <span className="font-medium text-brand-dark">{formData.project_name}</span> has been sent to your freelancer for review.
+            </p>
+          </div>
+
+          <div className="card bg-white space-y-4 text-left">
+            <h3 className="text-[13px] font-medium text-brand-dark border-b border-brand-light pb-3">Submission Summary</h3>
+
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-[12px] text-text-secondary">Project Type</span>
+                <span className="text-[12px] font-medium text-brand-dark">{formData.project_type}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[12px] text-text-secondary">Budget</span>
+                <span className="text-[12px] font-medium text-brand-dark">{formData.budget_range || "Not specified"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[12px] text-text-secondary">Timeline</span>
+                <span className="text-[12px] font-medium text-brand-dark">
+                  {formData.timeline_start ? new Date(formData.timeline_start).toLocaleDateString() : "TBD"}
+                  {" → "}
+                  {formData.timeline_end ? new Date(formData.timeline_end).toLocaleDateString() : "TBD"}
+                </span>
+              </div>
+              {(files.logo || files.references.length > 0 || files.documents.length > 0) && (
+                <div className="flex justify-between">
+                  <span className="text-[12px] text-text-secondary">Assets Uploaded</span>
+                  <span className="text-[12px] font-medium text-brand-dark">
+                    {(files.logo ? 1 : 0) + files.references.length + files.documents.length} file(s)
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <p className="text-[12px] text-blue-700">
+                You will receive a notification once your freelancer reviews the request. You can track the status from your dashboard.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <a
+              href="/client/dashboard"
+              className="w-full pill-btn py-3 justify-center"
+            >
+              Go to Dashboard
+              <IconArrowRight size={16} />
+            </a>
+            <a
+              href="/client/workspace"
+              className="w-full pill-btn-outline py-3 justify-center"
+            >
+              View Workspace
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[700px] mx-auto py-12 px-6">
@@ -360,12 +566,57 @@ export default function SetupProjectPage() {
         {/* Step 3: Branding & Assets */}
         {step === 2 && (
           <div className="card space-y-6">
+            {/* Logo Upload */}
+            <div className="space-y-3">
+              <label className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">
+                Logo Upload (PNG/SVG, max 10MB)
+              </label>
+              {files.logo ? (
+                <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-medium">
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <IconPhoto size={20} className="text-green-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-medium text-brand-dark truncate">{files.logo.name}</p>
+                    <p className="text-[11px] text-text-tertiary">{formatFileSize(files.logo.size)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeFile('logo')}
+                    className="p-2 text-status-overdue hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <IconTrash size={16} />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center gap-2 p-8 border-2 border-dashed border-brand-light rounded-medium bg-brand-surface cursor-pointer hover:border-brand-accent transition-colors">
+                  <IconUpload size={24} className="text-text-tertiary" />
+                  <span className="text-[13px] text-text-secondary font-medium">Click to upload logo</span>
+                  <span className="text-[11px] text-text-tertiary">PNG or SVG up to 10MB</span>
+                  <input
+                    type="file"
+                    accept=".png,.svg,.jpg,.jpeg"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                    disabled={!!uploading}
+                  />
+                </label>
+              )}
+              {uploading && (
+                <div className="flex items-center gap-2 text-[12px] text-brand-accent">
+                  <IconLoader2 size={14} className="animate-spin" />
+                  Uploading {uploading}...
+                </div>
+              )}
+            </div>
+
+            {/* Brand Colors */}
             <div className="space-y-3">
               <label className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">Brand Color Palette (up to 5)</label>
               <div className="flex gap-2 flex-wrap">
                 {formData.brand_colors.map((color, i) => (
                   <div key={i} className="relative group">
-                    <div 
+                    <div
                       className="w-12 h-12 rounded-lg border-2 border-brand-light"
                       style={{ backgroundColor: color }}
                     />
@@ -387,19 +638,99 @@ export default function SetupProjectPage() {
                 )}
               </div>
             </div>
+
+            {/* Brand Fonts */}
             <div className="space-y-1">
               <label className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">Brand Fonts</label>
-              <input 
+              <input
                 value={formData.brand_fonts}
                 onChange={(e) => updateField("brand_fonts", e.target.value)}
                 placeholder="e.g. Inter, Roboto, Open Sans"
                 className="w-full bg-brand-surface border-[0.5px] border-brand-light rounded-medium px-4 py-2.5 text-[13px] outline-none focus:border-brand-accent transition-colors"
               />
             </div>
-            <div className="p-4 bg-brand-light/20 rounded-medium border border-brand-light">
-              <p className="text-[12px] text-text-secondary">
-                📎 <strong>Note:</strong> Logo and asset uploads will be available in the next version. For now, please provide brand guidelines in the special requirements section.
-              </p>
+
+            {/* Reference Images */}
+            <div className="space-y-3">
+              <label className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">
+                Reference Images / Mood Board (max 20 files, 50MB total)
+              </label>
+              {files.references.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {files.references.map((file, i) => (
+                    <div key={i} className="relative group">
+                      <img
+                        src={file.url}
+                        alt={file.name}
+                        className="w-full h-24 object-cover rounded-lg border border-brand-light"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeFile('references', i)}
+                        className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <IconX size={12} />
+                      </button>
+                      <p className="text-[10px] text-text-tertiary truncate mt-1">{file.name}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {files.references.length < 20 && (
+                <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-brand-light rounded-medium bg-brand-surface cursor-pointer hover:border-brand-accent transition-colors">
+                  <IconPhoto size={20} className="text-text-tertiary" />
+                  <span className="text-[12px] text-text-secondary font-medium">Add reference images</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleReferenceUpload}
+                    className="hidden"
+                    disabled={!!uploading}
+                  />
+                </label>
+              )}
+            </div>
+
+            {/* Additional Documents */}
+            <div className="space-y-3">
+              <label className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">
+                Additional Documents (PDF, DOCX, max 10MB each)
+              </label>
+              {files.documents.length > 0 && (
+                <div className="space-y-2">
+                  {files.documents.map((file, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-brand-surface border border-brand-light rounded-medium">
+                      <IconFile size={18} className="text-brand-accent" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] text-brand-dark truncate">{file.name}</p>
+                        <p className="text-[11px] text-text-tertiary">{formatFileSize(file.size)}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFile('documents', i)}
+                        className="p-2 text-status-overdue hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <IconTrash size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {files.documents.length < 10 && (
+                <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-brand-light rounded-medium bg-brand-surface cursor-pointer hover:border-brand-accent transition-colors">
+                  <IconFileText size={20} className="text-text-tertiary" />
+                  <span className="text-[12px] text-text-secondary font-medium">Upload documents</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    multiple
+                    onChange={handleDocumentUpload}
+                    className="hidden"
+                    disabled={!!uploading}
+                  />
+                </label>
+              )}
             </div>
           </div>
         )}
@@ -472,7 +803,7 @@ export default function SetupProjectPage() {
                 <span className="badge bg-brand-light/50 text-text-secondary text-[10px]">{formData.budget_range || "Budget not set"}</span>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4 py-4 border-y border-brand-light">
               <div>
                 <p className="text-[11px] text-text-tertiary uppercase">Business</p>
@@ -484,6 +815,31 @@ export default function SetupProjectPage() {
                 <p className="text-[12px] text-brand-dark">{formData.timeline_start || "Not set"} → {formData.timeline_end || "Not set"}</p>
               </div>
             </div>
+
+            {/* Uploaded Files Review */}
+            {(files.logo || files.references.length > 0 || files.documents.length > 0) && (
+              <div className="space-y-3">
+                <p className="text-[11px] font-medium text-text-tertiary uppercase">Uploaded Assets</p>
+                {files.logo && (
+                  <div className="flex items-center gap-2">
+                    <IconPhoto size={14} className="text-green-600" />
+                    <span className="text-[12px] text-brand-dark">Logo: {files.logo.name}</span>
+                  </div>
+                )}
+                {files.references.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <IconPhoto size={14} className="text-brand-accent" />
+                    <span className="text-[12px] text-brand-dark">{files.references.length} reference image(s)</span>
+                  </div>
+                )}
+                {files.documents.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <IconFile size={14} className="text-blue-500" />
+                    <span className="text-[12px] text-brand-dark">{files.documents.length} document(s)</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {formData.platforms.length > 0 && (
               <div>
