@@ -7,7 +7,7 @@ import { IconUsers, IconMail, IconCalendar, IconArrowRight } from "@tabler/icons
 type ClientProfile = {
   id: string;
   full_name: string | null;
-  email: string | null;
+  email?: string | null;
   created_at: string;
 };
 
@@ -26,7 +26,7 @@ export default async function FreelancerClients() {
       id,
       status,
       created_at,
-      client:profiles!client_freelancer_links_client_id_fkey(id, full_name, email, created_at)
+      client:profiles!client_freelancer_links_client_id_fkey(id, full_name, created_at)
     `
     )
     .eq("freelancer_id", user.id)

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { normalizePipelineStage } from "./constants";
 import PipelineBoard, { type PipelineWorkspace } from "./pipeline-board";
 
 export default async function PipelinePage() {
@@ -31,7 +32,7 @@ export default async function PipelinePage() {
       id: w.id,
       name: w.name,
       project_type: w.project_type,
-      pipeline_stage: w.pipeline_stage,
+      pipeline_stage: normalizePipelineStage(w.pipeline_stage),
       status: w.status,
       client: clientObj,
     };

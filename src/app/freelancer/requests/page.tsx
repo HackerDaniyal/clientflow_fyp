@@ -32,7 +32,7 @@ export default async function RequestsPage({
     .select(
       `
       *,
-      client:profiles!project_requests_client_id_fkey(full_name, email)
+      client:profiles!project_requests_client_id_fkey(full_name)
     `
     )
     .eq("freelancer_id", user.id)
@@ -46,8 +46,8 @@ export default async function RequestsPage({
 
   const requests: ProjectRequestRow[] = (data ?? []).map((row) => {
     const client = row.client as
-      | { full_name: string | null; email: string | null }
-      | { full_name: string | null; email: string | null }[]
+      | { full_name: string | null; email?: string | null }
+      | { full_name: string | null; email?: string | null }[]
       | null;
     const clientObj = Array.isArray(client) ? client[0] ?? null : client;
     return {

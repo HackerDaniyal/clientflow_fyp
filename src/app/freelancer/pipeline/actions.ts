@@ -2,10 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { PIPELINE_STAGES, type PipelineStage } from "./constants";
+import {
+  normalizePipelineStage,
+  PIPELINE_STAGES,
+  type PipelineStage,
+} from "./constants";
 
 export async function updateWorkspaceStage(workspaceId: string, pipelineStage: string) {
-  if (!PIPELINE_STAGES.includes(pipelineStage as PipelineStage)) {
+  const stage = normalizePipelineStage(pipelineStage);
+  if (!PIPELINE_STAGES.includes(stage)) {
     throw new Error("Invalid pipeline stage");
   }
 
@@ -17,7 +22,7 @@ export async function updateWorkspaceStage(workspaceId: string, pipelineStage: s
 
   const { error } = await supabase
     .from("workspaces")
-    .update({ pipeline_stage: pipelineStage })
+    .update({ pipeline_stage: stage })
     .eq("id", workspaceId)
     .eq("freelancer_id", user.id);
 

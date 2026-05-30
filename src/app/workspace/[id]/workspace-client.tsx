@@ -83,12 +83,36 @@ export default function WorkspaceClient({
 
   type AssetFile = { name: string; url: string; path?: string };
   const projectAssets: { label: string; files: AssetFile[] }[] = (() => {
-    const assets = workspace.form_data?.assets;
+    const raw = workspace.form_data;
+    let formData: { assets?: Record<string, unknown> } | null = null;
+    if (raw) {
+      if (typeof raw === "string") {
+        try {
+          formData = JSON.parse(raw) as { assets?: Record<string, unknown> };
+        } catch {
+          formData = null;
+        }
+      } else if (typeof raw === "object") {
+        formData = raw as { assets?: Record<string, unknown> };
+      }
+    }
+    const assets = formData?.assets as
+      | {
+          logo?: AssetFile;
+          references?: AssetFile[];
+          documents?: AssetFile[];
+        }
+      | undefined;
     if (!assets) return [];
     const items: { label: string; files: AssetFile[] }[] = [];
     if (assets.logo?.url) items.push({ label: "Logo", files: [assets.logo] });
-    if (assets.references?.length) items.push({ label: "References", files: assets.references });
-    if (assets.documents?.length) items.push({ label: "Documents", files: assets.documents });
+    
+    const references = Array.isArray(assets.references) ? assets.references : [];
+    if (references.length) items.push({ label: "References", files: references });
+    
+    const documents = Array.isArray(assets.documents) ? assets.documents : [];
+    if (documents.length) items.push({ label: "Documents", files: documents });
+    
     return items;
   })();
   const allAssetFiles = projectAssets.flatMap((g) => g.files);
@@ -170,7 +194,7 @@ export default function WorkspaceClient({
   const fetchMembers = async () => {
     const { data } = await supabase
       .from("workspace_members")
-      .select("*, profiles:user_id(full_name, email, avatar_url)")
+      .select("*, profiles:user_id(full_name, avatar_url)")
       .eq("workspace_id", workspaceId);
     if (data) setMembers(data);
   };

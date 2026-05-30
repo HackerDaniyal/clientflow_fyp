@@ -26,8 +26,8 @@ export default async function WorkspacePage({ params }: { params: { id: string }
     .select(
       `
       *,
-      freelancer:profiles!workspaces_freelancer_id_fkey(full_name, email),
-      client:profiles!workspaces_client_id_fkey(full_name, email)
+      freelancer:profiles!workspaces_freelancer_id_fkey(full_name),
+      client:profiles!workspaces_client_id_fkey(full_name)
     `
     )
     .eq("id", params.id)
@@ -99,7 +99,7 @@ export default async function WorkspacePage({ params }: { params: { id: string }
     .select(
       `
       *,
-      profiles:user_id(full_name, email, avatar_url)
+      profiles:user_id(full_name, avatar_url)
     `
     )
     .eq("workspace_id", params.id);

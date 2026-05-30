@@ -1,41 +1,37 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   IconArrowRight,
-  IconArrowsMove,
   IconBriefcase,
-  IconChevronDown,
   IconLayoutKanban,
   IconList,
   IconSearch,
 } from "@tabler/icons-react";
 import { updateWorkspaceStage } from "./actions";
 import {
-  DEFAULT_PIPELINE_STAGE,
   PIPELINE_STAGES,
   STAGE_META,
+  normalizePipelineStage,
   type PipelineStage,
 } from "./constants";
+import MoveStageMenu from "./move-stage-menu";
 
 export type PipelineWorkspace = {
   id: string;
   name: string;
   project_type: string | null;
   pipeline_stage: string | null;
-  status: string;
+  status: string | null;
   client: { full_name: string | null } | null;
 };
 
 type ViewMode = "list" | "board";
 
 function getStage(workspace: PipelineWorkspace): PipelineStage {
-  const stage = workspace.pipeline_stage || DEFAULT_PIPELINE_STAGE;
-  return PIPELINE_STAGES.includes(stage as PipelineStage)
-    ? (stage as PipelineStage)
-    : DEFAULT_PIPELINE_STAGE;
+  return normalizePipelineStage(workspace.pipeline_stage);
 }
 
 function getInitials(name: string | null | undefined): string {
@@ -49,7 +45,8 @@ function getInitials(name: string | null | undefined): string {
     .toUpperCase();
 }
 
-function statusBadgeClass(status: string) {
+function statusBadgeClass(status: string | null | undefined) {
+  if (!status) return "bg-gray-100 text-text-secondary";
   switch (status) {
     case "active":
       return "badge-success";
@@ -62,97 +59,30 @@ function statusBadgeClass(status: string) {
   }
 }
 
-function formatStatus(status: string) {
+function formatStatus(status: string | null | undefined) {
+  if (!status) return "Unknown";
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-function MoveStageMenu({
-  currentStage,
-  disabled,
-  onMove,
-  align = "left",
-}: {
-  currentStage: PipelineStage;
-  disabled: boolean;
-  onMove: (stage: PipelineStage) => void;
-  align?: "left" | "right";
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
-
-  const targets = PIPELINE_STAGES.filter((s) => s !== currentStage);
-
-  return (
-    <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1 rounded-medium border border-brand-light/80 bg-white px-2.5 py-1.5 text-[12px] font-medium text-brand-dark transition-colors hover:bg-brand-surface disabled:opacity-50"
-      >
-        <IconArrowsMove size={14} stroke={2} />
-        Move
-        <IconChevronDown
-          size={14}
-          stroke={2}
-          className={`transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className={`absolute z-30 mt-1 w-48 max-h-56 overflow-y-auto rounded-large border border-[rgba(0,0,0,0.08)] bg-white py-1 shadow-lg ${
-            align === "right" ? "right-0" : "left-0"
-          }`}
-        >
-          {targets.map((stage) => {
-            const meta = STAGE_META[stage];
-            return (
-              <button
-                key={stage}
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onMove(stage);
-                  setOpen(false);
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-text-primary hover:bg-brand-surface"
-              >
-                <span className={`h-2 w-2 shrink-0 rounded-full ${meta.dot}`} />
-                {stage}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+function workspaceHref(id: string) {
+  return `/workspace/${id}`;
 }
 
 function PipelineCard({
   workspace,
-  isPending,
+  movingId,
   onMove,
   variant = "board",
 }: {
   workspace: PipelineWorkspace;
-  isPending: boolean;
+  movingId: string | null;
   onMove: (workspaceId: string, stage: PipelineStage) => void;
   variant?: "board" | "list";
 }) {
   const stage = getStage(workspace);
   const clientName = workspace.client?.full_name || "Unknown client";
+  const href = workspaceHref(workspace.id);
+  const isMoving = movingId === workspace.id;
 
   if (variant === "list") {
     return (
@@ -163,7 +93,7 @@ function PipelineCard({
           </div>
           <div className="min-w-0">
             <Link
-              href={`/workspace/${workspace.id}`}
+              href={href}
               className="block truncate text-[14px] font-medium text-brand-dark hover:text-brand-mid"
             >
               {workspace.name}
@@ -178,15 +108,12 @@ function PipelineCard({
           <span className={`badge text-[10px] ${statusBadgeClass(workspace.status)}`}>
             {formatStatus(workspace.status)}
           </span>
-          <Link
-            href={`/workspace/${workspace.id}`}
-            className="pill-btn-outline py-1.5 text-[12px]"
-          >
+          <Link href={href} className="pill-btn-outline py-1.5 text-[12px]">
             Open
           </Link>
           <MoveStageMenu
             currentStage={stage}
-            disabled={isPending}
+            disabled={isMoving}
             align="right"
             onMove={(next) => onMove(workspace.id, next)}
           />
@@ -204,7 +131,7 @@ function PipelineCard({
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] text-text-secondary">{clientName}</p>
           <Link
-            href={`/workspace/${workspace.id}`}
+            href={href}
             className="line-clamp-2 text-[13px] font-medium leading-snug text-brand-dark hover:text-brand-mid"
           >
             {workspace.name}
@@ -223,7 +150,7 @@ function PipelineCard({
       </div>
       <div className="mt-2.5 flex items-center gap-2">
         <Link
-          href={`/workspace/${workspace.id}`}
+          href={href}
           className="flex-1 inline-flex items-center justify-center gap-1 rounded-medium bg-brand-dark py-1.5 text-[11px] font-medium text-white hover:bg-brand-mid"
         >
           Open
@@ -231,7 +158,7 @@ function PipelineCard({
         </Link>
         <MoveStageMenu
           currentStage={stage}
-          disabled={isPending}
+          disabled={isMoving}
           onMove={(next) => onMove(workspace.id, next)}
         />
       </div>
@@ -258,10 +185,11 @@ export default function PipelineBoard({ workspaces }: { workspaces: PipelineWork
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [hideEmpty, setHideEmpty] = useState(true);
+  const [movingId, setMovingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(
     null
   );
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
     setItems(workspaces);
@@ -269,17 +197,18 @@ export default function PipelineBoard({ workspaces }: { workspaces: PipelineWork
 
   useEffect(() => {
     if (!feedback || feedback.type !== "success") return;
-    const t = setTimeout(() => setFeedback(null), 3000);
+    const t = setTimeout(() => setFeedback(null), 4000);
     return () => clearTimeout(t);
   }, [feedback]);
 
   const normalizedQuery = query.trim().toLowerCase();
 
   const filtered = useMemo(() => {
-    if (!normalizedQuery) return items;
+    if (!normalizedQuery) return items.filter(Boolean);
     return items.filter((w) => {
+      if (!w) return false;
       const client = w.client?.full_name?.toLowerCase() ?? "";
-      const name = w.name.toLowerCase();
+      const name = (w.name || "").toLowerCase();
       const type = w.project_type?.toLowerCase() ?? "";
       return (
         name.includes(normalizedQuery) ||
@@ -289,45 +218,138 @@ export default function PipelineBoard({ workspaces }: { workspaces: PipelineWork
     });
   }, [items, normalizedQuery]);
 
-  const byStage = (stage: PipelineStage) =>
-    filtered.filter((w) => getStage(w) === stage);
+  const byStage = useCallback(
+    (stage: PipelineStage) => filtered.filter((w) => w && getStage(w) === stage),
+    [filtered]
+  );
+
+  const visibleStages = useMemo((): PipelineStage[] => {
+    const all = [...PIPELINE_STAGES];
+    if (!hideEmpty) return all;
+    return all.filter((stage) => items.some((w) => w && getStage(w) === stage));
+  }, [hideEmpty, items]);
 
   const stats = useMemo(() => {
-    const total = items.length;
-    const active = items.filter((w) => {
+    const validItems = items.filter(Boolean);
+    const total = validItems.length;
+    const active = validItems.filter((w) => {
       const s = getStage(w);
       return s === "In Progress" || s === "Review";
     }).length;
-    const leads = items.filter((w) => getStage(w) === "Lead").length;
-    const completed = items.filter((w) => getStage(w) === "Completed").length;
+    const leads = validItems.filter((w) => getStage(w) === "Lead").length;
+    const completed = validItems.filter((w) => getStage(w) === "Completed").length;
     return { total, active, leads, completed };
   }, [items]);
 
-  const visibleStages = useMemo(() => {
-    if (!hideEmpty) return PIPELINE_STAGES;
-    return PIPELINE_STAGES.filter(
-      (stage) => filtered.filter((w) => getStage(w) === stage).length > 0
-    );
-  }, [hideEmpty, filtered]);
+  const move = useCallback(
+    (workspaceId: string, stage: PipelineStage) => {
+      const previous = items;
+      setMovingId(workspaceId);
+      setItems((prev) =>
+        prev.map((w) => (w.id === workspaceId ? { ...w, pipeline_stage: stage } : w))
+      );
+      setFeedback(null);
 
-  const move = (workspaceId: string, stage: PipelineStage) => {
-    const previous = items;
-    setItems((prev) =>
-      prev.map((w) => (w.id === workspaceId ? { ...w, pipeline_stage: stage } : w))
-    );
-    setFeedback(null);
+      startTransition(async () => {
+        try {
+          await updateWorkspaceStage(workspaceId, stage);
+          setFeedback({ type: "success", text: `Moved to ${stage}` });
+          router.refresh();
+        } catch (err) {
+          setItems(previous);
+          const message = err instanceof Error ? err.message : "Could not update stage";
+          setFeedback({ type: "error", text: message });
+        } finally {
+          setMovingId(null);
+        }
+      });
+    },
+    [items, router]
+  );
 
-    startTransition(async () => {
-      try {
-        await updateWorkspaceStage(workspaceId, stage);
-        setFeedback({ type: "success", text: `Moved to ${stage}` });
-        router.refresh();
-      } catch (err) {
-        setItems(previous);
-        const message = err instanceof Error ? err.message : "Could not update stage";
-        setFeedback({ type: "error", text: message });
-      }
-    });
+  const renderStageSections = (variant: "list" | "board") => {
+    if (visibleStages.length === 0) {
+      return (
+        <p className="text-[13px] text-text-secondary">
+          No stages with clients. Turn off &quot;Hide empty stages&quot; to see every column.
+        </p>
+      );
+    }
+
+    if (variant === "list") {
+      return (
+        <div className="space-y-8">
+          {visibleStages.map((stage) => {
+            const cards = byStage(stage);
+            const meta = STAGE_META[stage];
+            return (
+              <section key={stage}>
+                <div className="mb-3 border-b border-[rgba(0,0,0,0.06)] pb-2">
+                  <StageHeader stage={stage} count={cards.length} />
+                  <p className="mt-1 text-[12px] text-text-tertiary">{meta.description}</p>
+                </div>
+                {cards.length === 0 ? (
+                  <p className="text-[12px] text-text-tertiary py-2">No clients in this stage</p>
+                ) : (
+                  <div className="space-y-2">
+                    {cards.map((ws) => (
+                      <PipelineCard
+                        key={ws.id}
+                        workspace={ws}
+                        movingId={movingId}
+                        variant="list"
+                        onMove={move}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      );
+    }
+
+    return (
+      <div className="h-[min(560px,calc(100vh-20rem))] min-h-[360px] overflow-x-auto overflow-y-hidden">
+        <div className="flex h-full gap-4 p-1">
+          {visibleStages.map((stage) => {
+            const meta = STAGE_META[stage];
+            const cards = byStage(stage);
+            return (
+              <section
+                key={stage}
+                className={`flex h-full w-[272px] shrink-0 flex-col rounded-large border ${meta.column}`}
+              >
+                <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] px-3 py-3">
+                  <StageHeader stage={stage} count={cards.length} />
+                  <p className="mt-1 line-clamp-2 text-[11px] text-text-tertiary">
+                    {meta.description}
+                  </p>
+                </header>
+                <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                  {cards.length === 0 ? (
+                    <p className="py-6 text-center text-[11px] text-text-tertiary">Empty</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {cards.map((ws) => (
+                        <PipelineCard
+                          key={ws.id}
+                          workspace={ws}
+                          movingId={movingId}
+                          variant="board"
+                          onMove={move}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -375,9 +397,9 @@ export default function PipelineBoard({ workspaces }: { workspaces: PipelineWork
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center justify-between w-full lg:w-auto gap-4 shrink-0">
           <div
-            className="inline-flex rounded-medium border border-brand-light/80 p-0.5 bg-brand-surface/50"
+            className="inline-flex rounded-medium border border-brand-light/80 p-0.5 bg-brand-surface/50 shrink-0"
             role="tablist"
             aria-label="Pipeline view"
           >
@@ -411,15 +433,26 @@ export default function PipelineBoard({ workspaces }: { workspaces: PipelineWork
             </button>
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2 text-[12px] text-text-secondary">
-            <input
-              type="checkbox"
-              checked={hideEmpty}
-              onChange={(e) => setHideEmpty(e.target.checked)}
-              className="h-4 w-4 rounded border-brand-light text-brand-mid"
-            />
+          <button
+            type="button"
+            role="switch"
+            aria-checked={hideEmpty}
+            onClick={() => setHideEmpty((v) => !v)}
+            className="inline-flex items-center gap-2 text-[12px] text-text-secondary hover:text-brand-dark shrink-0"
+          >
+            <span
+              className={`relative h-5 w-9 shrink-0 rounded-pill transition-colors duration-200 ${
+                hideEmpty ? "bg-brand-mid" : "bg-gray-300"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                  hideEmpty ? "translate-x-[18px]" : "translate-x-[2px]"
+                }`}
+              />
+            </span>
             Hide empty stages
-          </label>
+          </button>
         </div>
       </div>
 
@@ -436,6 +469,10 @@ export default function PipelineBoard({ workspaces }: { workspaces: PipelineWork
         </p>
       )}
 
+      {movingId && (
+        <p className="text-[12px] text-text-tertiary">Saving stage change…</p>
+      )}
+
       {filtered.length === 0 ? (
         <div className="card flex flex-col items-center justify-center py-12 text-center">
           <IconBriefcase size={36} stroke={1.5} className="mb-2 text-text-tertiary" />
@@ -450,90 +487,13 @@ export default function PipelineBoard({ workspaces }: { workspaces: PipelineWork
           )}
         </div>
       ) : viewMode === "list" ? (
-        <div className="space-y-8">
-          {visibleStages.length === 0 ? (
-            <p className="text-[13px] text-text-secondary">
-              All stages are empty. Uncheck &quot;Hide empty stages&quot; to see the full pipeline.
-            </p>
-          ) : (
-            visibleStages.map((stage) => {
-              const cards = byStage(stage);
-              const meta = STAGE_META[stage];
-              return (
-                <section key={stage}>
-                  <div className="mb-3 border-b border-[rgba(0,0,0,0.06)] pb-2">
-                    <StageHeader stage={stage} count={cards.length} />
-                    <p className="mt-1 text-[12px] text-text-tertiary">{meta.description}</p>
-                  </div>
-                  <div className="space-y-2">
-                    {cards.map((ws) => (
-                      <PipelineCard
-                        key={ws.id}
-                        workspace={ws}
-                        isPending={isPending}
-                        variant="list"
-                        onMove={move}
-                      />
-                    ))}
-                  </div>
-                </section>
-              );
-            })
-          )}
-        </div>
+        renderStageSections("list")
       ) : (
-        <div className="card p-0 overflow-hidden">
-          <p className="border-b border-[rgba(0,0,0,0.06)] px-4 py-2 text-[12px] text-text-tertiary">
-            Scroll horizontally between stages. Each column scrolls on its own if it has many
-            projects.
+        <div className="card p-3">
+          <p className="mb-3 text-[12px] text-text-tertiary">
+            Scroll sideways to browse stages. Tall columns scroll inside the board.
           </p>
-          <div
-            className="overflow-x-auto overflow-y-hidden"
-            style={{ height: "min(520px, calc(100vh - 22rem))" }}
-          >
-            <div className="flex h-full items-stretch gap-4 p-4 min-w-max">
-              {visibleStages.length === 0 ? (
-                <p className="p-4 text-[13px] text-text-secondary">
-                  No stages with clients. Turn off &quot;Hide empty stages&quot; to show all columns.
-                </p>
-              ) : (
-                visibleStages.map((stage) => {
-                  const meta = STAGE_META[stage];
-                  const cards = byStage(stage);
-                  return (
-                    <section
-                      key={stage}
-                      className={`flex h-full w-[260px] shrink-0 flex-col overflow-hidden rounded-large border ${meta.column}`}
-                    >
-                      <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] px-3 py-3">
-                        <StageHeader stage={stage} count={cards.length} />
-                      </header>
-
-                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
-                        {cards.length === 0 ? (
-                          <p className="px-2 py-3 text-center text-[11px] text-text-tertiary">
-                            Empty
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {cards.map((ws) => (
-                              <PipelineCard
-                                key={ws.id}
-                                workspace={ws}
-                                isPending={isPending}
-                                variant="board"
-                                onMove={move}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </section>
-                  );
-                })
-              )}
-            </div>
-          </div>
+          {renderStageSections("board")}
         </div>
       )}
     </div>

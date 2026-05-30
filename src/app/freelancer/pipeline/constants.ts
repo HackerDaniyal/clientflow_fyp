@@ -12,6 +12,17 @@ export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
 export const DEFAULT_PIPELINE_STAGE: PipelineStage = "In Progress";
 
+/** Map DB / legacy values to a known pipeline stage */
+export function normalizePipelineStage(value: string | null | undefined): PipelineStage {
+  if (!value?.trim()) return DEFAULT_PIPELINE_STAGE;
+  const trimmed = value.trim();
+  const exact = PIPELINE_STAGES.find((s) => s === trimmed);
+  if (exact) return exact;
+  const lower = trimmed.toLowerCase();
+  const fuzzy = PIPELINE_STAGES.find((s) => s.toLowerCase() === lower);
+  return fuzzy ?? DEFAULT_PIPELINE_STAGE;
+}
+
 export const STAGE_META: Record<
   PipelineStage,
   { dot: string; column: string; description: string }

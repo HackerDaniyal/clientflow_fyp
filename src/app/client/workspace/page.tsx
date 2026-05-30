@@ -15,7 +15,7 @@ export default async function ClientWorkspace() {
     .from("workspaces")
     .select(`
       *,
-      freelancer:profiles!workspaces_freelancer_id_fkey(full_name, email)
+      freelancer:profiles!workspaces_freelancer_id_fkey(full_name)
     `)
     .eq("client_id", user.id)
     .order("created_at", { ascending: false });

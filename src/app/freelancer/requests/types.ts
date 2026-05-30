@@ -27,6 +27,6 @@ export type ProjectRequestRow = {
   responded_at: string | null;
   client: {
     full_name: string | null;
-    email: string | null;
+    email?: string | null;
   } | null;
 };
