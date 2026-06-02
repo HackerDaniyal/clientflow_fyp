@@ -88,7 +88,9 @@ export default async function WorkspacePage({ params }: { params: { id: string }
       reads:message_reads(user_id, delivered_at, read_at)
     `;
 
-  let messagesResult = await supabase
+  let messages: any[] | null = null;
+
+  const messagesResult = await supabase
     .from("messages")
     .select(messagesSelect)
     .eq("workspace_id", params.id)
@@ -96,7 +98,7 @@ export default async function WorkspacePage({ params }: { params: { id: string }
     .limit(100);
 
   if (messagesResult.error?.message?.includes("message_reads")) {
-    messagesResult = await supabase
+    const fallbackResult = await supabase
       .from("messages")
       .select(
         `
@@ -113,9 +115,10 @@ export default async function WorkspacePage({ params }: { params: { id: string }
       .eq("workspace_id", params.id)
       .order("created_at", { ascending: true })
       .limit(100);
+    messages = fallbackResult.data;
+  } else {
+    messages = messagesResult.data;
   }
-
-  const messages = messagesResult.data;
 
   const { data: members } = await supabase
     .from("workspace_members")
