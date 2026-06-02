@@ -1,26 +1,50 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #eef8f2;
+  --foreground: #1a1a1a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-brand-dark: #1a3d2b;
+  --color-brand-mid: #1a6b45;
+  --color-brand: #2f9b65;
+  --color-brand-light: #3acf84;
+  --color-brand-tint: #a8e8c6;
+  --color-brand-surface: #d4f0e2;
+  --color-brand-bg: #eef8f2;
+  --color-brand-faint: #f5fbf7;
+
+  --color-neutral-900: #1a1a1a;
+  --color-neutral-600: #5a5a5a;
+  --color-neutral-400: #9a9a9a;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-100: #f0f0f0;
+
+  --color-success: #1a9960;
+  --color-warning: #f59e0b;
+  --color-danger: #d83c2e;
+  --color-info: #134a85;
+
+  --font-sans: var(--font-plus-jakarta), var(--font-dm-sans), ui-sans-serif, system-ui;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+
+  --radius-badge: 4px;
+  --radius-pill: 6px;
+  --radius-btn: 8px;
+  --radius-nav: 10px;
+  --radius-card: 12px;
+  --radius-modal: 16px;
+
+  --shadow-card: 0 1px 4px rgb(0 0 0 / 0.07);
+  --shadow-modal: 0 4px 16px rgb(0 0 0 / 0.1);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
