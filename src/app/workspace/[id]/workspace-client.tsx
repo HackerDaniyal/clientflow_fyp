@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { 
   IconLayoutDashboard, 
   IconFiles, 
@@ -26,11 +26,22 @@ import {
   IconSparkles,
   IconCircleCheck,
   IconCircleX,
-  IconInfoCircle
+  IconInfoCircle,
+  IconCalendar,
+  IconUser,
+  IconFilter,
+  IconGripVertical,
+  IconChevronDown,
+  IconChevronRight,
+  IconX,
+  IconDotsVertical,
+  IconAlertCircle,
+  IconMessage
 } from "@tabler/icons-react";
 import { createClient } from "@/lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createTask, toggleTask, inviteMember, removeMember, changeMemberRole, createDocument, updateDocument, sendDocument, deleteDocument, updateWorkspaceAssets, sendAssetsToFreelancer } from "./actions";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
+import { createTask, toggleTask, updateTask, deleteTask, reorderTasks, addTaskComment, deleteTaskComment, inviteMember, removeMember, changeMemberRole, createDocument, updateDocument, sendDocument, deleteDocument, updateWorkspaceAssets, sendAssetsToFreelancer } from "./actions";
 import WorkspaceChat, { type ChatMessage } from "@/components/workspace/WorkspaceChat";
 import DocumentEditor from "@/components/documents/DocumentEditor";
 import type { DocumentType } from "@/components/documents/types";
@@ -65,6 +76,7 @@ export default function WorkspaceClient({
   userRole,
   workspaceId,
   documents: initialDocuments = [],
+  currentUserId,
   accountRole,
   canCreateTasks,
   canToggleTasks,
@@ -85,6 +97,15 @@ export default function WorkspaceClient({
   const [documents, setDocuments] = useState(initialDocuments);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState("medium");
+  const [newTaskDescription, setNewTaskDescription] = useState("");
+  const [newTaskDueDate, setNewTaskDueDate] = useState("");
+  const [newTaskAssignee, setNewTaskAssignee] = useState("");
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [taskFilter, setTaskFilter] = useState<{ status: string; priority: string; assignee: string }>({ status: "all", priority: "all", assignee: "all" });
+  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const [taskMenuOpen, setTaskMenuOpen] = useState<string | null>(null);
+  const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("viewer");
   const [loading, setLoading] = useState(false);
@@ -382,6 +403,18 @@ export default function WorkspaceClient({
       )
       .subscribe();
 
+    // Subscribe to task comments (refetch tasks to get updated comments)
+    const commentsChannel = supabase
+      .channel('task-comments')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_comments' },
+        () => {
+          fetchTasks();
+        }
+      )
+      .subscribe();
+
     // Subscribe to activity log
     const activityChannel = supabase
       .channel('activity')
@@ -409,6 +442,7 @@ export default function WorkspaceClient({
 
     return () => {
       supabase.removeChannel(tasksChannel);
+      supabase.removeChannel(commentsChannel);
       supabase.removeChannel(activityChannel);
       supabase.removeChannel(workspaceChannel);
     };
@@ -424,12 +458,25 @@ export default function WorkspaceClient({
   }, [activeTab, workspaceId]);
 
   const fetchTasks = async () => {
-    const { data } = await supabase
+    // Try with comments and sort_order first
+    const { data, error } = await supabase
       .from("tasks")
-      .select("*, assignee:assigned_to(full_name), creator:created_by(full_name)")
+      .select("*, assignee:assigned_to(full_name, avatar_url), creator:created_by(full_name), comments:task_comments(id, content, created_at, user:user_id(full_name, avatar_url))")
+      .eq("workspace_id", workspaceId)
+      .order("sort_order", { ascending: true });
+
+    if (data) {
+      setTasks(data);
+      return;
+    }
+
+    // Fallback: without comments, order by created_at
+    const { data: fallbackData } = await supabase
+      .from("tasks")
+      .select("*, assignee:assigned_to(full_name, avatar_url), creator:created_by(full_name)")
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false });
-    if (data) setTasks(data);
+    if (fallbackData) setTasks(fallbackData);
   };
 
   const fetchActivityLog = async () => {
@@ -459,8 +506,20 @@ export default function WorkspaceClient({
     if (!newTaskTitle.trim()) return;
     setLoading(true);
     try {
-      await createTask(workspaceId, newTaskTitle, newTaskPriority);
+      await createTask(
+        workspaceId,
+        newTaskTitle,
+        newTaskPriority,
+        newTaskDescription || undefined,
+        newTaskDueDate || undefined,
+        newTaskAssignee || undefined
+      );
       setNewTaskTitle("");
+      setNewTaskPriority("medium");
+      setNewTaskDescription("");
+      setNewTaskDueDate("");
+      setNewTaskAssignee("");
+      setShowTaskForm(false);
       await fetchTasks();
       showToast('Task created!', 'success');
     } catch (err: any) {
@@ -468,6 +527,98 @@ export default function WorkspaceClient({
     }
     setLoading(false);
   };
+
+  const handleDragEnd = async (result: DropResult) => {
+    if (!result.destination) return;
+    const srcIdx = result.source.index;
+    const dstIdx = result.destination.index;
+    if (srcIdx === dstIdx) return;
+
+    const newTasks = [...tasks];
+    const [moved] = newTasks.splice(srcIdx, 1);
+    newTasks.splice(dstIdx, 0, moved);
+
+    // Optimistic update
+    setTasks(newTasks);
+
+    // Batch update sort_order
+    const updates = newTasks.map((t, i) => ({ id: t.id, sort_order: i }));
+    try {
+      await reorderTasks(updates);
+    } catch {
+      setTasks(tasks); // revert on error
+      showToast('Failed to reorder tasks', 'error');
+    }
+  };
+
+  const handleUpdateTask = async (taskId: string, updates: Record<string, unknown>) => {
+    try {
+      await updateTask(taskId, updates as any);
+      await fetchTasks();
+      showToast('Task updated!', 'success');
+      setEditingTask(null);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update task', 'error');
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      await deleteTask(taskId);
+      await fetchTasks();
+      showToast('Task deleted', 'success');
+      setTaskMenuOpen(null);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete task', 'error');
+    }
+  };
+
+  const handleAddComment = async (taskId: string) => {
+    if (!commentText.trim()) return;
+    try {
+      await addTaskComment(taskId, commentText);
+      setCommentText("");
+      await fetchTasks();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to add comment', 'error');
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      await deleteTaskComment(commentId);
+      await fetchTasks();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete comment', 'error');
+    }
+  };
+
+  // Workspace participants for assignee selector
+  const assigneeOptions = useMemo(() => {
+    const opts: { id: string; name: string }[] = [];
+    if (workspace?.freelancer_id) {
+      opts.push({ id: workspace.freelancer_id, name: workspace.freelancer?.full_name || 'Freelancer' });
+    }
+    if (workspace?.client_id) {
+      opts.push({ id: workspace.client_id, name: workspace.client?.full_name || 'Client' });
+    }
+    members.forEach((m: any) => {
+      if (m.profiles?.full_name) {
+        opts.push({ id: m.user_id, name: m.profiles.full_name });
+      }
+    });
+    return opts;
+  }, [workspace, members]);
+
+  // Filtered tasks
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t: any) => {
+      if (taskFilter.status !== 'all' && t.status !== taskFilter.status) return false;
+      if (taskFilter.priority !== 'all' && t.priority !== taskFilter.priority) return false;
+      if (taskFilter.assignee !== 'all' && (t.assigned_to || 'unassigned') !== taskFilter.assignee) return false;
+      return true;
+    });
+  }, [tasks, taskFilter]);
 
   const handleToggleTask = async (taskId: string, isCurrentlyCompleted: boolean) => {
     // Optimistic update — toggle just this one task instantly
@@ -1016,96 +1167,466 @@ export default function WorkspaceClient({
         {/* To-Do Tab */}
         {activeTab === "todo" && (
           <div className="space-y-6">
-            {/* Add Task Form */}
+            {/* Add Task Button / Form */}
             {canCreateTasks && (
               <div className="card bg-white p-6">
-                <h3 className="text-lg font-semibold text-brand-dark mb-4">Add New Task</h3>
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    value={newTaskTitle}
-                    onChange={(e) => setNewTaskTitle(e.target.value)}
-                    placeholder="Task title..."
-                    className="flex-1 bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
-                    onKeyDown={(e) => e.key === "Enter" && handleCreateTask()}
-                  />
-                  <select
-                    value={newTaskPriority}
-                    onChange={(e) => setNewTaskPriority(e.target.value)}
-                    className="bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
+                {!showTaskForm ? (
                   <button
-                    onClick={handleCreateTask}
-                    disabled={loading || !newTaskTitle.trim()}
-                    className="pill-btn bg-brand-accent text-white disabled:opacity-50"
+                    onClick={() => setShowTaskForm(true)}
+                    className="w-full py-3 border-2 border-dashed border-brand-light rounded-lg text-[14px] text-text-secondary hover:border-brand-accent hover:text-brand-accent transition-all flex items-center justify-center gap-2"
                   >
                     <IconPlus size={18} />
-                    Add
+                    Add New Task
                   </button>
-                </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-brand-dark">New Task</h3>
+                      <button onClick={() => setShowTaskForm(false)} className="p-1 rounded-lg hover:bg-gray-100 text-text-tertiary">
+                        <IconX size={18} />
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={newTaskTitle}
+                      onChange={(e) => setNewTaskTitle(e.target.value)}
+                      placeholder="Task title..."
+                      className="w-full bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
+                      autoFocus
+                      onKeyDown={(e) => e.key === "Enter" && handleCreateTask()}
+                    />
+                    <textarea
+                      value={newTaskDescription}
+                      onChange={(e) => setNewTaskDescription(e.target.value)}
+                      placeholder="Description (optional)..."
+                      rows={2}
+                      className="w-full bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent resize-none"
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <select
+                        value={newTaskPriority}
+                        onChange={(e) => setNewTaskPriority(e.target.value)}
+                        className="bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
+                      >
+                        <option value="low">Low Priority</option>
+                        <option value="medium">Medium Priority</option>
+                        <option value="high">High Priority</option>
+                        <option value="urgent">Urgent</option>
+                      </select>
+                      <input
+                        type="date"
+                        value={newTaskDueDate}
+                        onChange={(e) => setNewTaskDueDate(e.target.value)}
+                        className="bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
+                      />
+                      <select
+                        value={newTaskAssignee}
+                        onChange={(e) => setNewTaskAssignee(e.target.value)}
+                        className="bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
+                      >
+                        <option value="">Unassigned</option>
+                        {assigneeOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>{opt.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex justify-end gap-3">
+                      <button
+                        onClick={() => { setShowTaskForm(false); setNewTaskTitle(""); setNewTaskDescription(""); setNewTaskDueDate(""); setNewTaskAssignee(""); }}
+                        className="px-4 py-2 text-[13px] text-text-secondary hover:text-brand-dark transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleCreateTask}
+                        disabled={loading || !newTaskTitle.trim()}
+                        className="pill-btn bg-brand-accent text-white disabled:opacity-50 px-6"
+                      >
+                        <IconPlus size={16} />
+                        Create Task
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Tasks List */}
+            {/* Filters */}
+            <div className="card bg-white p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <IconFilter size={16} className="text-text-tertiary" />
+                <select
+                  value={taskFilter.status}
+                  onChange={(e) => setTaskFilter({ ...taskFilter, status: e.target.value })}
+                  className="bg-brand-surface border border-brand-light rounded-lg px-3 py-1.5 text-[12px] outline-none focus:border-brand-accent"
+                >
+                  <option value="all">All Status</option>
+                  <option value="todo">To Do</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+                <select
+                  value={taskFilter.priority}
+                  onChange={(e) => setTaskFilter({ ...taskFilter, priority: e.target.value })}
+                  className="bg-brand-surface border border-brand-light rounded-lg px-3 py-1.5 text-[12px] outline-none focus:border-brand-accent"
+                >
+                  <option value="all">All Priorities</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+                <select
+                  value={taskFilter.assignee}
+                  onChange={(e) => setTaskFilter({ ...taskFilter, assignee: e.target.value })}
+                  className="bg-brand-surface border border-brand-light rounded-lg px-3 py-1.5 text-[12px] outline-none focus:border-brand-accent"
+                >
+                  <option value="all">All Assignees</option>
+                  <option value="unassigned">Unassigned</option>
+                  {assigneeOptions.map((opt) => (
+                    <option key={opt.id} value={opt.id}>{opt.name}</option>
+                  ))}
+                </select>
+                <span className="text-[11px] text-text-tertiary ml-auto">{filteredTasks.length} of {tasks.length} tasks</span>
+              </div>
+            </div>
+
+            {/* Tasks List (Drag-and-Drop) */}
             <div className="card bg-white p-6">
-              <h3 className="text-lg font-semibold text-brand-dark mb-4">Tasks ({tasks.length})</h3>
-              {tasks.length === 0 ? (
+              <h3 className="text-lg font-semibold text-brand-dark mb-4">Tasks ({filteredTasks.length})</h3>
+              {filteredTasks.length === 0 ? (
                 <p className="text-text-secondary text-center py-8">
-                  No tasks yet.{" "}
-                  {canCreateTasks
-                    ? accountRole === "client"
-                      ? "Add a task for your freelancer."
-                      : "Create one above!"
-                    : ""}
+                  {tasks.length === 0
+                    ? "No tasks yet. Create one above!"
+                    : "No tasks match the current filters."}
                 </p>
               ) : (
-                <div className="space-y-3">
-                  {tasks.map((task) => (
-                    <div
-                      key={task.id}
-                      onClick={() => canToggleTasks && handleToggleTask(task.id, task.status === "completed")}
-                      className={`flex items-center gap-4 p-4 rounded-lg border transition-all cursor-pointer select-none ${
-                        task.status === "completed"
-                          ? "bg-brand-surface border-brand-light/30 opacity-60"
-                          : "bg-white border-brand-light/50 hover:border-brand-accent hover:shadow-sm"
-                      }`}
-                    >
-                      {canToggleTasks && (
-                        <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                          task.status === "completed"
-                            ? "bg-brand-mid border-brand-mid text-white scale-110"
-                            : "border-brand-light hover:border-brand-accent hover:scale-105"
-                        }`}>
-                          {task.status === "completed" && <IconCheck size={16} strokeWidth={3} />}
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        <p className={`text-[14px] font-medium text-brand-dark transition-all ${task.status === "completed" ? "line-through opacity-60" : ""}`}>
-                          {task.title}
-                        </p>
-                        <p className="text-[11px] text-text-tertiary mt-0.5">
-                          {task.creator?.full_name
-                            ? `Added by ${task.creator.full_name}`
-                            : "Added by team"}
-                        </p>
-                        {task.due_date && (
-                          <p className="text-[12px] text-text-tertiary mt-1">
-                            Due: {new Date(task.due_date).toLocaleDateString()}
-                          </p>
-                        )}
+                <DragDropContext onDragEnd={handleDragEnd}>
+                  <Droppable droppableId="tasks">
+                    {(provided) => (
+                      <div className="space-y-2" {...provided.droppableProps} ref={provided.innerRef}>
+                        {filteredTasks.map((task: any, index: number) => {
+                          const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== 'completed';
+                          const comments: any[] = task.comments || [];
+                          const isCommentOpen = commentTaskId === task.id;
+
+                          return (
+                            <Draggable key={task.id} draggableId={task.id} index={index} isDragDisabled={!canToggleTasks}>
+                              {(provided, snapshot) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  className={`rounded-lg border transition-all select-none ${
+                                    snapshot.isDragging ? 'shadow-lg border-brand-accent bg-white' : ''
+                                  } ${
+                                    task.status === 'completed'
+                                      ? 'bg-brand-surface/50 border-brand-light/30 opacity-60'
+                                      : 'bg-white border-brand-light/50 hover:border-brand-accent/30'
+                                  }`}
+                                >
+                                  {/* Task Row */}
+                                  <div className="flex items-center gap-3 p-4">
+                                    {/* Drag Handle */}
+                                    {canToggleTasks && (
+                                      <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-text-tertiary/50 hover:text-text-tertiary">
+                                        <IconGripVertical size={16} />
+                                      </div>
+                                    )}
+
+                                    {/* Status Toggle */}
+                                    {canToggleTasks ? (
+                                      <button
+                                        onClick={() => handleToggleTask(task.id, task.status === 'completed')}
+                                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                                          task.status === 'completed'
+                                            ? 'bg-brand-mid border-brand-mid text-white'
+                                            : task.status === 'in_progress'
+                                              ? 'border-brand-accent bg-brand-accent/10'
+                                              : 'border-brand-light hover:border-brand-accent'
+                                        }`}
+                                      >
+                                        {task.status === 'completed' && <IconCheck size={14} strokeWidth={3} />}
+                                        {task.status === 'in_progress' && <div className="w-2 h-2 rounded-full bg-brand-accent" />}
+                                      </button>
+                                    ) : (
+                                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                        task.status === 'completed' ? 'bg-brand-mid border-brand-mid text-white' : 'border-brand-light'
+                                      }`}>
+                                        {task.status === 'completed' && <IconCheck size={14} strokeWidth={3} />}
+                                      </div>
+                                    )}
+
+                                    {/* Task Info */}
+                                    <div className="flex-1 min-w-0">
+                                      <p className={`text-[14px] font-medium text-brand-dark ${task.status === 'completed' ? 'line-through opacity-60' : ''}`}>
+                                        {task.title}
+                                      </p>
+                                      {task.description && (
+                                        <p className="text-[12px] text-text-tertiary mt-0.5 truncate">{task.description}</p>
+                                      )}
+                                      <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                                        {/* Due Date */}
+                                        {task.due_date && (
+                                          <span className={`text-[11px] flex items-center gap-1 ${isOverdue ? 'text-red-500 font-medium' : 'text-text-tertiary'}`}>
+                                            <IconCalendar size={11} />
+                                            {new Date(task.due_date).toLocaleDateString()}
+                                            {isOverdue && ' (overdue)'}
+                                          </span>
+                                        )}
+                                        {/* Assignee */}
+                                        {task.assignee?.full_name && (
+                                          <span className="text-[11px] text-text-tertiary flex items-center gap-1">
+                                            <IconUser size={11} />
+                                            {task.assignee.full_name}
+                                          </span>
+                                        )}
+                                        {/* Creator */}
+                                        <span className="text-[10px] text-text-tertiary">
+                                          by {task.creator?.full_name || 'team'}
+                                        </span>
+                                        {/* Status badge */}
+                                        {task.status === 'in_progress' && (
+                                          <span className="text-[10px] bg-brand-accent/10 text-brand-mid px-2 py-0.5 rounded-full font-medium">In Progress</span>
+                                        )}
+                                        {/* Comments toggle button */}
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setCommentTaskId(isCommentOpen ? null : task.id); }}
+                                          className={`text-[10px] flex items-center gap-0.5 px-1.5 py-0.5 rounded-full transition-colors ${
+                                            isCommentOpen
+                                              ? 'bg-brand-accent/15 text-brand-mid'
+                                              : 'text-text-tertiary hover:bg-gray-100'
+                                          }`}
+                                        >
+                                          <IconMessage size={12} />
+                                          {comments.length > 0 && <span>{comments.length}</span>}
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Priority Badge */}
+                                    <span className={`badge text-[10px] ${getPriorityColor(task.priority)}`}>
+                                      {task.priority}
+                                    </span>
+
+                                    {/* Action Menu */}
+                                    <div className="relative">
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setTaskMenuOpen(taskMenuOpen === task.id ? null : task.id); }}
+                                        className="p-1.5 rounded-lg hover:bg-gray-100 text-text-tertiary transition-colors"
+                                      >
+                                        <IconDotsVertical size={16} />
+                                      </button>
+                                      {taskMenuOpen === task.id && (
+                                        <>
+                                          <div className="fixed inset-0 z-40" onClick={() => setTaskMenuOpen(null)} />
+                                          <div className="absolute right-0 top-8 z-50 bg-white rounded-lg shadow-lg border border-gray-100 py-1 w-44">
+                                            {canToggleTasks && task.status !== 'completed' && (
+                                              <button
+                                                onClick={() => { handleUpdateTask(task.id, { status: task.status === 'in_progress' ? 'todo' : 'in_progress' }); setTaskMenuOpen(null); }}
+                                                className="w-full px-3 py-2 text-[12px] text-left hover:bg-gray-50 flex items-center gap-2 text-brand-dark"
+                                              >
+                                                <IconClock size={14} className="text-brand-accent" />
+                                                {task.status === 'in_progress' ? 'Mark as To Do' : 'Mark In Progress'}
+                                              </button>
+                                            )}
+                                            <button
+                                              onClick={() => { setEditingTask(task); setTaskMenuOpen(null); }}
+                                              className="w-full px-3 py-2 text-[12px] text-left hover:bg-gray-50 flex items-center gap-2 text-brand-dark"
+                                            >
+                                              <IconPencil size={14} className="text-text-secondary" />
+                                              Edit Task
+                                            </button>
+                                            <button
+                                              onClick={() => { setCommentTaskId(isCommentOpen ? null : task.id); setTaskMenuOpen(null); }}
+                                              className="w-full px-3 py-2 text-[12px] text-left hover:bg-gray-50 flex items-center gap-2 text-brand-dark"
+                                            >
+                                              <IconMessage size={14} className="text-text-secondary" />
+                                              {isCommentOpen ? 'Hide Comments' : 'Comments'}
+                                            </button>
+                                            {userRole === 'editor' && (
+                                              <button
+                                                onClick={() => handleDeleteTask(task.id)}
+                                                className="w-full px-3 py-2 text-[12px] text-left hover:bg-red-50 flex items-center gap-2 text-red-500"
+                                              >
+                                                <IconTrash size={14} />
+                                                Delete
+                                              </button>
+                                            )}
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Comments Section */}
+                                  {isCommentOpen && (
+                                    <div className="border-t border-gray-100 px-4 py-3 bg-gray-50/50">
+                                      {comments.length > 0 ? (
+                                        <div className="space-y-3 mb-3">
+                                          {comments.map((c: any) => (
+                                            <div key={c.id} className="flex items-start gap-2">
+                                              <div className="w-6 h-6 rounded-full bg-brand-surface flex items-center justify-center text-[9px] font-bold text-brand-mid shrink-0">
+                                                {(c.user?.full_name || 'U').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+                                              </div>
+                                              <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                  <span className="text-[12px] font-medium text-brand-dark">{c.user?.full_name || 'Unknown'}</span>
+                                                  <span className="text-[10px] text-text-tertiary">{new Date(c.created_at).toLocaleDateString()}</span>
+                                                </div>
+                                                <p className="text-[12px] text-text-secondary mt-0.5">{c.content}</p>
+                                              </div>
+                                              {c.user_id === currentUserId && (
+                                                <button
+                                                  onClick={() => handleDeleteComment(c.id)}
+                                                  className="p-1 rounded hover:bg-gray-200 text-text-tertiary"
+                                                >
+                                                  <IconX size={12} />
+                                                </button>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="text-[12px] text-text-tertiary mb-3">No comments yet.</p>
+                                      )}
+                                      <div className="flex gap-2">
+                                        <input
+                                          type="text"
+                                          value={commentTaskId === task.id ? commentText : ''}
+                                          onChange={(e) => setCommentText(e.target.value)}
+                                          placeholder="Add a comment..."
+                                          className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-brand-accent"
+                                          onKeyDown={(e) => e.key === 'Enter' && handleAddComment(task.id)}
+                                        />
+                                        <button
+                                          onClick={() => handleAddComment(task.id)}
+                                          disabled={!commentText.trim()}
+                                          className="p-2 bg-brand-accent text-white rounded-lg disabled:opacity-50"
+                                        >
+                                          <IconSend size={14} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </Draggable>
+                          );
+                        })}
+                        {provided.placeholder}
                       </div>
-                      <span className={`badge text-[11px] ${getPriorityColor(task.priority)}`}>
-                        {task.priority}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                    )}
+                  </Droppable>
+                </DragDropContext>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Edit Task Modal */}
+        {editingTask && (
+          <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4" onClick={() => setEditingTask(null)}>
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-semibold text-brand-dark">Edit Task</h3>
+                <button onClick={() => setEditingTask(null)} className="p-1 rounded-lg hover:bg-gray-100 text-text-tertiary">
+                  <IconX size={18} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[12px] font-medium text-text-secondary mb-1 block">Title</label>
+                  <input
+                    type="text"
+                    defaultValue={editingTask.title}
+                    id="edit-task-title"
+                    className="w-full bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
+                  />
+                </div>
+                <div>
+                  <label className="text-[12px] font-medium text-text-secondary mb-1 block">Description</label>
+                  <textarea
+                    defaultValue={editingTask.description || ''}
+                    id="edit-task-desc"
+                    rows={3}
+                    className="w-full bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent resize-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[12px] font-medium text-text-secondary mb-1 block">Priority</label>
+                    <select
+                      defaultValue={editingTask.priority}
+                      id="edit-task-priority"
+                      className="w-full bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[12px] font-medium text-text-secondary mb-1 block">Status</label>
+                    <select
+                      defaultValue={editingTask.status}
+                      id="edit-task-status"
+                      className="w-full bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
+                    >
+                      <option value="todo">To Do</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[12px] font-medium text-text-secondary mb-1 block">Due Date</label>
+                    <input
+                      type="date"
+                      defaultValue={editingTask.due_date ? editingTask.due_date.split('T')[0] : ''}
+                      id="edit-task-due"
+                      className="w-full bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[12px] font-medium text-text-secondary mb-1 block">Assignee</label>
+                    <select
+                      defaultValue={editingTask.assigned_to || ''}
+                      id="edit-task-assignee"
+                      className="w-full bg-brand-surface border border-brand-light rounded-lg px-4 py-2.5 outline-none focus:border-brand-accent"
+                    >
+                      <option value="">Unassigned</option>
+                      {assigneeOptions.map((opt) => (
+                        <option key={opt.id} value={opt.id}>{opt.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    onClick={() => setEditingTask(null)}
+                    className="px-4 py-2 text-[13px] text-text-secondary hover:text-brand-dark transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      const title = (document.getElementById('edit-task-title') as HTMLInputElement)?.value;
+                      const description = (document.getElementById('edit-task-desc') as HTMLTextAreaElement)?.value;
+                      const priority = (document.getElementById('edit-task-priority') as HTMLSelectElement)?.value;
+                      const status = (document.getElementById('edit-task-status') as HTMLSelectElement)?.value;
+                      const due_date = (document.getElementById('edit-task-due') as HTMLInputElement)?.value || null;
+                      const assigned_to = (document.getElementById('edit-task-assignee') as HTMLSelectElement)?.value || null;
+                      handleUpdateTask(editingTask.id, { title, description, priority, status, due_date, assigned_to });
+                    }}
+                    className="pill-btn bg-brand-accent text-white px-6"
+                  >
+                    <IconCheck size={16} />
+                    Save Changes
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

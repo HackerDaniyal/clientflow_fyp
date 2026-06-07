@@ -82,21 +82,45 @@ export async function uploadChatAttachment(formData: FormData) {
   return { url: urlData.publicUrl, name: file.name }
 }
 
-export async function createTask(workspaceId: string, title: string, priority: string) {
+export async function createTask(
+  workspaceId: string,
+  title: string,
+  priority: string,
+  description?: string,
+  dueDate?: string,
+  assignedTo?: string
+) {
   const supabase = createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
 
+  // Get next sort_order
+  const { data: maxOrder } = await supabase
+    .from('tasks')
+    .select('sort_order')
+    .eq('workspace_id', workspaceId)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .single()
+
+  const nextOrder = (maxOrder?.sort_order ?? 0) + 1
+
+  const insertData: Record<string, unknown> = {
+    workspace_id: workspaceId,
+    title,
+    priority,
+    status: 'todo',
+    created_by: user.id,
+    sort_order: nextOrder
+  }
+  if (description) insertData.description = description
+  if (dueDate) insertData.due_date = dueDate
+  if (assignedTo) insertData.assigned_to = assignedTo
+
   const { data: task, error } = await supabase
     .from('tasks')
-    .insert({
-      workspace_id: workspaceId,
-      title,
-      priority,
-      status: 'todo',
-      created_by: user.id
-    })
+    .insert(insertData)
     .select()
     .single()
 
@@ -105,7 +129,6 @@ export async function createTask(workspaceId: string, title: string, priority: s
     throw new Error('Failed to create task')
   }
 
-  // Log activity
   await supabase
     .from('activity_log')
     .insert({
@@ -187,6 +210,172 @@ export async function toggleTask(taskId: string, completed: boolean) {
     })
 
   revalidatePath(`/workspace/${task.workspace_id}`)
+}
+
+export async function updateTask(
+  taskId: string,
+  updates: {
+    title?: string
+    description?: string
+    priority?: string
+    status?: string
+    due_date?: string | null
+    assigned_to?: string | null
+  }
+) {
+  const supabase = createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('title, workspace_id')
+    .eq('id', taskId)
+    .single()
+
+  if (!task) throw new Error('Task not found')
+
+  const updateData: Record<string, unknown> = { ...updates }
+  if (updates.status === 'completed') {
+    updateData.completed_at = new Date().toISOString()
+  } else if (updates.status && updates.status !== 'completed') {
+    updateData.completed_at = null
+  }
+
+  const { error } = await supabase
+    .from('tasks')
+    .update(updateData)
+    .eq('id', taskId)
+
+  if (error) {
+    console.error('Error updating task:', error)
+    throw new Error('Failed to update task')
+  }
+
+  await supabase
+    .from('activity_log')
+    .insert({
+      workspace_id: task.workspace_id,
+      user_id: user.id,
+      action: `updated task: ${updates.title || task.title}`,
+      entity_type: 'task',
+      entity_id: taskId
+    })
+
+  revalidatePath(`/workspace/${task.workspace_id}`)
+}
+
+export async function deleteTask(taskId: string) {
+  const supabase = createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('title, workspace_id')
+    .eq('id', taskId)
+    .single()
+
+  if (!task) throw new Error('Task not found')
+
+  const { error } = await supabase
+    .from('tasks')
+    .delete()
+    .eq('id', taskId)
+
+  if (error) {
+    console.error('Error deleting task:', error)
+    throw new Error('Failed to delete task')
+  }
+
+  await supabase
+    .from('activity_log')
+    .insert({
+      workspace_id: task.workspace_id,
+      user_id: user.id,
+      action: `deleted task: ${task.title}`,
+      entity_type: 'task',
+      entity_id: taskId
+    })
+
+  revalidatePath(`/workspace/${task.workspace_id}`)
+}
+
+export async function reorderTasks(updates: { id: string; sort_order: number }[]) {
+  const supabase = createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  for (const update of updates) {
+    await supabase
+      .from('tasks')
+      .update({ sort_order: update.sort_order })
+      .eq('id', update.id)
+  }
+
+  // Get workspace_id from first task for revalidation
+  if (updates.length > 0) {
+    const { data: task } = await supabase
+      .from('tasks')
+      .select('workspace_id')
+      .eq('id', updates[0].id)
+      .single()
+
+    if (task) {
+      revalidatePath(`/workspace/${task.workspace_id}`)
+    }
+  }
+}
+
+export async function addTaskComment(taskId: string, content: string) {
+  const supabase = createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('workspace_id, title')
+    .eq('id', taskId)
+    .single()
+
+  if (!task) throw new Error('Task not found')
+
+  const { error } = await supabase
+    .from('task_comments')
+    .insert({
+      task_id: taskId,
+      user_id: user.id,
+      content
+    })
+
+  if (error) {
+    console.error('Error adding task comment:', error)
+    throw new Error('Failed to add comment')
+  }
+
+  revalidatePath(`/workspace/${task.workspace_id}`)
+}
+
+export async function deleteTaskComment(commentId: string) {
+  const supabase = createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { error } = await supabase
+    .from('task_comments')
+    .delete()
+    .eq('id', commentId)
+    .eq('user_id', user.id)
+
+  if (error) {
+    console.error('Error deleting task comment:', error)
+    throw new Error('Failed to delete comment')
+  }
 }
 
 export async function sendMessage(workspaceId: string, content: string, fileUrl?: string, fileName?: string, replyToId?: string) {

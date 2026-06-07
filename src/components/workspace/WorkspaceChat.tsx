@@ -996,7 +996,7 @@ export default function WorkspaceChat({
               placeholder={
                 uploadingFile
                   ? "Uploading file..."
-                  : "Type a message... (Markdown supported: **bold**, *italic*, `code`)"
+                  : "Type a message..."
               }
               className="flex-1 bg-brand-surface border border-brand-light rounded-full px-4 py-2.5 text-[14px] outline-none focus:border-brand-accent"
               onKeyDown={(e) => {

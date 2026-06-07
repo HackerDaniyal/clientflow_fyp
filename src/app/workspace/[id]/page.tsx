@@ -64,17 +64,41 @@ export default async function WorkspacePage({ params }: { params: { id: string }
   const canToggleTasks =
     isFreelancerOnWorkspace || (hasEditorMembership && accountRole !== "client");
 
-  const { data: tasks } = await supabase
+  // Try with comments + sort_order first
+  let tasksResult = await supabase
     .from("tasks")
     .select(
       `
       *,
-      assignee:assigned_to(full_name),
-      creator:created_by(full_name)
+      assignee:assigned_to(full_name, avatar_url),
+      creator:created_by(full_name),
+      comments:task_comments(
+        id,
+        content,
+        created_at,
+        user:user_id(full_name, avatar_url)
+      )
     `
     )
     .eq("workspace_id", params.id)
-    .order("created_at", { ascending: false });
+    .order("sort_order", { ascending: true });
+
+  // Fallback if sort_order or task_comments don't exist yet
+  let tasks = tasksResult.data;
+  if (tasksResult.error || !tasks) {
+    const fallback = await supabase
+      .from("tasks")
+      .select(
+        `
+        *,
+        assignee:assigned_to(full_name, avatar_url),
+        creator:created_by(full_name)
+      `
+      )
+      .eq("workspace_id", params.id)
+      .order("created_at", { ascending: false });
+    tasks = fallback.data;
+  }
 
   const messagesSelect = `
       id,
