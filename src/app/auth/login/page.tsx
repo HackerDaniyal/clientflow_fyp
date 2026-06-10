@@ -45,8 +45,9 @@ export default function LoginPage({
         <form action={login} className="card space-y-4 shadow-sm bg-white">
           {redirect && <input type="hidden" name="redirect" value={redirect} />}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">Email Address</label>
+            <label htmlFor="email" className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">Email Address</label>
             <input 
+              id="email"
               name="email"
               type="email" 
               required
@@ -56,10 +57,11 @@ export default function LoginPage({
           </div>
           <div className="space-y-1">
             <div className="flex justify-between items-center">
-              <label className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">Password</label>
+              <label htmlFor="password" className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">Password</label>
               <Link href="/auth/forgot-password" className="text-[10px] text-brand-dark underline opacity-70">Forgot password?</Link>
             </div>
             <input 
+              id="password"
               name="password"
               type="password" 
               required

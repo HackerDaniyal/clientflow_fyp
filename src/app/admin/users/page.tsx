@@ -24,7 +24,7 @@ export default async function AdminUsers() {
         <p className="text-sm text-text-secondary">All registered platform users.</p>
       </header>
 
-      <div className="card bg-white overflow-hidden">
+      <div className="card bg-white overflow-hidden overflow-x-auto">
         <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b border-brand-light text-text-secondary">

@@ -172,6 +172,20 @@ export default async function WorkspacePage({ params }: { params: { id: string }
     .eq("workspace_id", params.id)
     .order("created_at", { ascending: false });
 
+  // Fetch time logs (with graceful fallback if table doesn't exist yet)
+  let timeLogs: any[] = [];
+  try {
+    const { data: tl } = await supabase
+      .from("time_logs")
+      .select("*, profiles:user_id(full_name)")
+      .eq("workspace_id", params.id)
+      .order("start_time", { ascending: false })
+      .limit(50);
+    timeLogs = tl || [];
+  } catch {
+    // time_logs table may not exist yet
+  }
+
   return (
     <Suspense
       fallback={
@@ -187,6 +201,7 @@ export default async function WorkspacePage({ params }: { params: { id: string }
         members={members || []}
         activityLog={activityLog || []}
         documents={documents || []}
+        timeLogs={timeLogs}
         userRole={memberRole}
         workspaceId={params.id}
         currentUserId={user.id}

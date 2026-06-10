@@ -18,6 +18,7 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import NotificationsBell from "@/components/NotificationsBell";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const navItems = [
   { label: "Dashboard", href: "/client/dashboard", icon: IconLayoutDashboard },
@@ -59,7 +60,7 @@ export default function ClientTopBar() {
   };
 
   return (
-    <header className="w-full bg-white border-b border-brand-light sticky top-0 z-40">
+    <header className="w-full bg-white dark:bg-[#111] border-b border-brand-light dark:border-[#2A2A2A] sticky top-0 z-40">
       <div className="max-w-[1440px] mx-auto px-4 lg:px-6">
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
@@ -99,6 +100,7 @@ export default function ClientTopBar() {
 
           {/* Right side: Notifications + Profile */}
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             {/* Notification bell */}
             <NotificationsBell href="/client/notifications" />
 
@@ -106,6 +108,8 @@ export default function ClientTopBar() {
             <div className="relative">
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
+                aria-expanded={dropdownOpen}
+                aria-haspopup="true"
                 className="flex items-center gap-2 p-1 pr-2 rounded-lg hover:bg-brand-light/30 transition-colors"
               >
                 <div className="w-7 h-7 rounded-full bg-brand-accent/20 flex items-center justify-center text-brand-accent text-xs font-semibold overflow-hidden">

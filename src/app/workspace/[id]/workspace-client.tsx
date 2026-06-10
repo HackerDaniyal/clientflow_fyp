@@ -45,12 +45,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { createTask, toggleTask, updateTask, deleteTask, reorderTasks, addTaskComment, deleteTaskComment, inviteMember, removeMember, changeMemberRole, createDocument, updateDocument, sendDocument, deleteDocument, updateWorkspaceAssets, sendAssetsToFreelancer, markAsPaid, acceptProposal, counterOfferProposal } from "./actions";
 import WorkspaceChat, { type ChatMessage } from "@/components/workspace/WorkspaceChat";
+import TimeTracker from "@/components/workspace/TimeTracker";
 import DocumentEditor from "@/components/documents/DocumentEditor";
 import type { DocumentType } from "@/components/documents/types";
 import ProposalTemplate from "@/components/documents/ProposalTemplate";
 import InvoiceTemplate from "@/components/documents/InvoiceTemplate";
 import ContractTemplate from "@/components/documents/ContractTemplate";
 import { exportPDF, exportProposalDOC, exportInvoiceDOC, exportContractDOC } from "@/lib/document-export";
+import { useToast } from "@/components/ToastProvider";
 
 interface WorkspaceClientProps {
   workspace: any;
@@ -61,6 +63,7 @@ interface WorkspaceClientProps {
   userRole: string;
   workspaceId: string;
   documents?: any[];
+  timeLogs?: any[];
   currentUserId: string;
   accountRole: string;
   canCreateTasks: boolean;
@@ -78,6 +81,7 @@ export default function WorkspaceClient({
   userRole,
   workspaceId,
   documents: initialDocuments = [],
+  timeLogs: initialTimeLogs = [],
   currentUserId,
   accountRole,
   canCreateTasks,
@@ -303,14 +307,8 @@ export default function WorkspaceClient({
     return !!fd?.assets_sent_at;
   });
 
-  // Custom toast notification with optional undo
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info'; onUndo?: () => void } | null>(null);
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info', onUndo?: () => void) => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setToast({ message, type, onUndo });
-    toastTimerRef.current = setTimeout(() => setToast(null), onUndo ? 6000 : 3500);
-  };
+  // Global toast
+  const { showToast } = useToast();
 
   // Download file as blob (saves to PC instead of opening in new tab)
   const downloadFileAsBlob = async (url: string, fileName: string) => {
@@ -502,6 +500,15 @@ export default function WorkspaceClient({
     }, 10000);
     return () => clearInterval(interval);
   }, [activeTab, workspaceId]);
+
+  // Broadcast workspace context to the AI Assistant (so it shows workspace-aware suggestions)
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('ai-workspace-context', { detail: { workspaceId } }));
+    return () => {
+      // Clear context when leaving the workspace page
+      window.dispatchEvent(new CustomEvent('ai-workspace-context', { detail: { workspaceId: '' } }));
+    };
+  }, [workspaceId]);
 
   const fetchTasks = async () => {
     // Try with comments and sort_order first
@@ -791,39 +798,15 @@ export default function WorkspaceClient({
 
   return (
     <div className="min-h-screen bg-brand-surface">
-      {/* Toast Notification */}
-      {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 text-sm font-medium animate-[fadeInDown_0.3s_ease-out] ${
-          toast.type === 'success' ? 'bg-green-500 text-white' :
-          toast.type === 'error' ? 'bg-red-500 text-white' :
-          'bg-blue-500 text-white'
-        }`}>
-          {toast.type === 'success' && <IconCircleCheck size={18} />}
-          {toast.type === 'error' && <IconCircleX size={18} />}
-          {toast.type === 'info' && <IconInfoCircle size={18} />}
-          <span>{toast.message}</span>
-          {toast.onUndo && (
-            <button
-              onClick={() => {
-                toast.onUndo!();
-                setToast(null);
-              }}
-              className="ml-1 px-3 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white text-[12px] font-semibold transition-colors"
-            >
-              Undo
-            </button>
-          )}
-        </div>
-      )}
-
       {/* Header */}
-      <div className="bg-white border-b border-brand-light/50">
+      <div className="bg-white dark:bg-[#1A1A1A] border-b border-brand-light/50 dark:border-[#2A2A2A]/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => router.back()}
                 className="p-2 hover:bg-brand-light/30 rounded-lg transition-colors"
+                aria-label="Go back"
               >
                 <IconArrowLeft size={20} />
               </button>
@@ -840,9 +823,9 @@ export default function WorkspaceClient({
       </div>
 
       {/* Tab Navigation */}
-      <div className="bg-white border-b border-brand-light/50">
+      <div className="bg-white dark:bg-[#1A1A1A] border-b border-brand-light/50 dark:border-[#2A2A2A]/50">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="flex gap-1 overflow-x-auto">
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -900,6 +883,13 @@ export default function WorkspaceClient({
                 <p className="text-sm text-text-secondary mt-1">In conversation</p>
               </div>
             </div>
+
+            {/* Time Tracker */}
+            <TimeTracker
+              workspaceId={workspaceId}
+              initialTimeLogs={initialTimeLogs}
+              currentUserId={currentUserId}
+            />
 
             {/* Activity Log */}
             <div className="card bg-white p-6">

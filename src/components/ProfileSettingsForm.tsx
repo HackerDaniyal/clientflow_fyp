@@ -22,37 +22,14 @@ type ProfileData = {
   created_at: string;
 };
 
-/* ───────── Toast helper ───────── */
-function Toast({ toast, onClose }: {
-  toast: { message: string; type: "success" | "error" | "info"; onUndo?: () => void } | null;
-  onClose: () => void;
-  onUndo?: () => void;
-}) {
-  if (!toast) return null;
-  const bg = toast.type === "success" ? "bg-brand-mid" : toast.type === "error" ? "bg-red-600" : "bg-brand-dark";
-  return (
-    <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] animate-[fadeInDown_0.3s_ease]">
-      <div className={`${bg} text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 min-w-[280px] max-w-[420px]`}>
-        {toast.type === "success" && <IconCheck size={18} />}
-        {toast.type === "error" && <IconAlertCircle size={18} />}
-        <span className="text-[13px] flex-1">{toast.message}</span>
-        {toast.onUndo && (
-          <button onClick={() => { toast.onUndo?.(); onClose(); }} className="text-[12px] font-semibold underline underline-offset-2 hover:no-underline">
-            Undo
-          </button>
-        )}
-        <button onClick={onClose} className="opacity-70 hover:opacity-100"><IconX size={16} /></button>
-      </div>
-    </div>
-  );
-}
+import { useToast } from "@/components/ToastProvider";
 
 /* ───────── Avatar Section ───────── */
 function AvatarSection({ profile, onAvatarChange }: { profile: ProfileData; onAvatarChange: (url: string) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
-  const [showToast, setShowToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const { showToast: showToastHook } = useToast();
 
   const initials = (profile.full_name || "U").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
@@ -60,7 +37,7 @@ function AvatarSection({ profile, onAvatarChange }: { profile: ProfileData; onAv
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      setShowToast({ message: "File too large (max 2MB)", type: "error" });
+      showToastHook("File too large (max 2MB)", "error");
       return;
     }
     // Preview
@@ -71,10 +48,10 @@ function AvatarSection({ profile, onAvatarChange }: { profile: ProfileData; onAv
       fd.append("avatar", file);
       const result = await uploadAvatar(fd);
       if (result.avatarUrl) onAvatarChange(result.avatarUrl);
-      setShowToast({ message: "Avatar updated!", type: "success" });
+      showToastHook("Avatar updated!", "success");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Upload failed";
-      setShowToast({ message: msg, type: "error" });
+      showToastHook(msg, "error");
       setPreview(null);
     }
     setUploading(false);
@@ -84,7 +61,7 @@ function AvatarSection({ profile, onAvatarChange }: { profile: ProfileData; onAv
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <Toast toast={showToast} onClose={() => setShowToast(null)} />
+
       <div className="relative group">
         <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-brand-tint shadow-lg bg-brand-surface flex items-center justify-center">
           {avatarSrc ? (
@@ -158,15 +135,7 @@ export default function ProfileSettingsForm({ profile }: { profile: ProfileData 
   const [pwPending, setPwPending] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [showPwConfirm, setShowPwConfirm] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setToast({ message, type });
-    timerRef.current = setTimeout(() => setToast(null), 3500);
-  };
+  const { showToast } = useToast();
 
   const handleSave = (fd: FormData) => {
     startTransition(async () => {

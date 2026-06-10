@@ -1086,3 +1086,77 @@ export async function deleteTemplate(templateId: string) {
     throw new Error('Failed to delete template')
   }
 }
+
+// ── Time Tracker ──
+
+export async function startTimeLog(workspaceId: string, description: string) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  // Check if user already has a running timer
+  const { data: running } = await supabase
+    .from('time_logs')
+    .select('id')
+    .eq('user_id', user.id)
+    .is('end_time', null)
+    .limit(1)
+    .maybeSingle()
+
+  if (running) {
+    throw new Error('You already have a running timer. Stop it first.')
+  }
+
+  const { data: log, error } = await supabase
+    .from('time_logs')
+    .insert({
+      workspace_id: workspaceId,
+      user_id: user.id,
+      description: description.trim() || null,
+      start_time: new Date().toISOString(),
+    })
+    .select('id, start_time, description')
+    .single()
+
+  if (error) {
+    console.error('Error starting time log:', error)
+    throw new Error('Failed to start timer')
+  }
+
+  return log
+}
+
+export async function stopTimeLog(logId: string) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { error } = await supabase
+    .from('time_logs')
+    .update({ end_time: new Date().toISOString() })
+    .eq('id', logId)
+    .eq('user_id', user.id)
+    .is('end_time', null)
+
+  if (error) {
+    console.error('Error stopping time log:', error)
+    throw new Error('Failed to stop timer')
+  }
+}
+
+export async function deleteTimeLog(logId: string) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { error } = await supabase
+    .from('time_logs')
+    .delete()
+    .eq('id', logId)
+    .eq('user_id', user.id)
+
+  if (error) {
+    console.error('Error deleting time log:', error)
+    throw new Error('Failed to delete time entry')
+  }
+}

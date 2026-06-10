@@ -57,7 +57,7 @@ export default async function ClientDashboard() {
               {activeWorkspace.project_type || 'Project'} · Created {new Date(activeWorkspace.created_at).toLocaleDateString()}
             </p>
             
-            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/10">
+            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/10 min-w-0">
               <div>
                 <p className="text-[9px] opacity-60">Stage</p>
                 <p className="text-[13px] font-medium">{activeWorkspace.pipeline_stage || 'In Progress'}</p>
@@ -112,7 +112,7 @@ export default async function ClientDashboard() {
         {/* Quick Actions */}
         <div className="card">
           <h3 className="section-title">Quick Actions</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
             <Link href="/client/setup-project" className="flex flex-col items-center gap-3 p-4 bg-brand-surface rounded-xl hover:bg-brand-tint/40 hover:border-brand-accent/30 border border-transparent transition-all group">
               <div className="w-10 h-10 rounded-lg bg-brand-tint flex items-center justify-center group-hover:bg-brand-accent/20 transition-colors">
                 <IconFileText size={20} className="text-brand-mid" />

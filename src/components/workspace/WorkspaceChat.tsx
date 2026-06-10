@@ -18,6 +18,7 @@ import {
   IconExternalLink,
 } from "@tabler/icons-react";
 import { createClient } from "@/lib/supabase";
+import { useToast } from "@/components/ToastProvider";
 import {
   sendMessage,
   toggleMessageReaction,
@@ -160,12 +161,8 @@ export default function WorkspaceChat({
   const [uploadingFile, setUploadingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Toast
-  const [toast, setToast] = useState<{ msg: string; type: "error" | "success" } | null>(null);
-  const showToast = (msg: string, type: "error" | "success" = "error") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+  // Global toast
+  const { showToast } = useToast();
 
   // Reactions
   const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
@@ -476,7 +473,7 @@ export default function WorkspaceChat({
       setNewMessage(textToSend);
       setPendingFile(fileToSend);
       setReplyTo(replyToSend);
-      showToast("Failed to send message");
+      showToast("Failed to send message", "error");
     } finally {
       setSending(false);
     }
@@ -489,7 +486,7 @@ export default function WorkspaceChat({
     e.target.value = ""; // reset input
 
     if (file.size > 10 * 1024 * 1024) {
-      showToast("File too large. Maximum size is 10MB.");
+      showToast("File too large. Maximum size is 10MB.", "error");
       return;
     }
 
@@ -502,7 +499,7 @@ export default function WorkspaceChat({
       setPendingFile(result);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Upload failed";
-      showToast(msg || "Upload failed");
+      showToast(msg || "Upload failed", "error");
     } finally {
       setUploadingFile(false);
     }
@@ -552,22 +549,6 @@ export default function WorkspaceChat({
       className="card bg-white flex flex-col overflow-hidden relative"
       style={{ height: "calc(100vh - 300px)", minHeight: "420px" }}
     >
-      {/* ---- Toast notification ---- */}
-      {toast && (
-        <div
-          className={`absolute top-3 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-lg shadow-md text-[13px] font-medium flex items-center gap-2 animate-[fadeInDown_0.2s_ease] ${
-            toast.type === "error"
-              ? "bg-red-50 text-red-700 border border-red-200"
-              : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-          }`}
-        >
-          <span>{toast.msg}</span>
-          <button onClick={() => setToast(null)} className="opacity-60 hover:opacity-100">
-            <IconX size={14} />
-          </button>
-        </div>
-      )}
-
       {/* ---- Search bar ---- */}
       <div className="border-b border-brand-light/50 px-4 py-2 flex items-center gap-2">
         {searchOpen ? (
