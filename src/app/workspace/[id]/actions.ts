@@ -912,3 +912,177 @@ export async function updateDocument(documentId: string, workspaceId: string, ti
 
   revalidatePath(`/workspace/${workspaceId}`)
 }
+
+// ── Mark as Paid ──
+export async function markAsPaid(documentId: string, workspaceId: string) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { data: doc } = await supabase
+    .from('workspace_documents')
+    .select('*, workspaces!inner(client_id, name, freelancer_id)')
+    .eq('id', documentId)
+    .single()
+
+  if (!doc) throw new Error('Document not found')
+
+  const { error } = await supabase
+    .from('workspace_documents')
+    .update({ status: 'paid' })
+    .eq('id', documentId)
+
+  if (error) {
+    console.error('Error marking as paid:', error)
+    throw new Error('Failed to update status')
+  }
+
+  // Notify client
+  await supabase.from('notifications').insert({
+    user_id: doc.workspaces.client_id,
+    type: 'invoice_paid',
+    title: 'Invoice Marked as Paid',
+    body: `${doc.title} has been marked as paid. Thank you!`,
+    data: { document_id: documentId, workspace_id: workspaceId }
+  })
+
+  await supabase.from('activity_log').insert({
+    workspace_id: workspaceId,
+    user_id: user.id,
+    action: `marked as paid: ${doc.title}`,
+    entity_type: 'document',
+    entity_id: documentId
+  })
+
+  revalidatePath(`/workspace/${workspaceId}`)
+  revalidatePath('/freelancer/invoices')
+}
+
+// ── Accept Proposal ──
+export async function acceptProposal(documentId: string, workspaceId: string) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { data: doc } = await supabase
+    .from('workspace_documents')
+    .select('*, workspaces!inner(freelancer_id, name, client_id)')
+    .eq('id', documentId)
+    .single()
+
+  if (!doc) throw new Error('Document not found')
+
+  // Update proposal to approved
+  await supabase
+    .from('workspace_documents')
+    .update({ status: 'approved' })
+    .eq('id', documentId)
+
+  // Advance workspace to "In Progress"
+  await supabase
+    .from('workspaces')
+    .update({ pipeline_stage: 'In Progress' })
+    .eq('id', workspaceId)
+
+  // Notify freelancer
+  await supabase.from('notifications').insert({
+    user_id: doc.workspaces.freelancer_id,
+    type: 'proposal_accepted',
+    title: 'Proposal Accepted!',
+    body: `Your proposal "${doc.title}" for ${doc.workspaces.name} has been accepted by the client.`,
+    data: { document_id: documentId, workspace_id: workspaceId }
+  })
+
+  await supabase.from('activity_log').insert({
+    workspace_id: workspaceId,
+    user_id: user.id,
+    action: `accepted proposal: ${doc.title}`,
+    entity_type: 'document',
+    entity_id: documentId
+  })
+
+  revalidatePath(`/workspace/${workspaceId}`)
+}
+
+// ── Counter Offer (Proposal notes) ──
+export async function counterOfferProposal(documentId: string, workspaceId: string, notes: string) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  if (!notes.trim()) throw new Error('Please provide your counter-offer notes')
+
+  const { data: doc } = await supabase
+    .from('workspace_documents')
+    .select('*, workspaces!inner(freelancer_id, name)')
+    .eq('id', documentId)
+    .single()
+
+  if (!doc) throw new Error('Document not found')
+
+  // Store counter offer notes in document content
+  const content = (doc.content as Record<string, unknown>) || {}
+  content.counterOfferNotes = notes.trim()
+  content.counterOfferAt = new Date().toISOString()
+
+  await supabase
+    .from('workspace_documents')
+    .update({ content })
+    .eq('id', documentId)
+
+  // Notify freelancer
+  await supabase.from('notifications').insert({
+    user_id: doc.workspaces.freelancer_id,
+    type: 'proposal_counter_offer',
+    title: 'Counter Offer Received',
+    body: `Client sent a counter offer for "${doc.title}": ${notes.slice(0, 100)}${notes.length > 100 ? '...' : ''}`,
+    data: { document_id: documentId, workspace_id: workspaceId, notes }
+  })
+
+  await supabase.from('activity_log').insert({
+    workspace_id: workspaceId,
+    user_id: user.id,
+    action: `sent counter offer for: ${doc.title}`,
+    entity_type: 'document',
+    entity_id: documentId
+  })
+
+  revalidatePath(`/workspace/${workspaceId}`)
+}
+
+// ── Template Library ──
+export async function saveTemplate(name: string, type: string, content: any) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { error } = await supabase
+    .from('document_templates')
+    .insert({
+      freelancer_id: user.id,
+      name: name.trim(),
+      type,
+      content
+    })
+
+  if (error) {
+    console.error('Error saving template:', error)
+    throw new Error('Failed to save template')
+  }
+}
+
+export async function deleteTemplate(templateId: string) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { error } = await supabase
+    .from('document_templates')
+    .delete()
+    .eq('id', templateId)
+
+  if (error) {
+    console.error('Error deleting template:', error)
+    throw new Error('Failed to delete template')
+  }
+}

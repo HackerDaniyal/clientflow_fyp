@@ -4,10 +4,10 @@ import { redirect } from "next/navigation";
 import RequestsClient from "./requests-client";
 import type { ProjectRequestRow } from "./types";
 
-type FilterStatus = "all" | "pending" | "accepted" | "rejected";
+type FilterStatus = "all" | "pending" | "accepted" | "rejected" | "info_needed";
 
 function parseFilter(status: string | undefined): FilterStatus {
-  if (status === "pending" || status === "accepted" || status === "rejected") {
+  if (status === "pending" || status === "accepted" || status === "rejected" || status === "info_needed") {
     return status;
   }
   return "all";
@@ -67,6 +67,7 @@ export default async function RequestsPage({
       requests={requests}
       fetchError={error?.message ?? null}
       initialFilter={filter}
+      freelancerId={user.id}
     />
   );
 }

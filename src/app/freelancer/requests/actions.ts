@@ -21,8 +21,8 @@ export async function acceptRequest(requestId: string) {
     throw new Error('Project request not found')
   }
 
-  if (request.status !== 'pending') {
-    throw new Error('Request is not pending')
+  if (request.status !== 'pending' && request.status !== 'info_needed') {
+    throw new Error('Request is not pending or awaiting info')
   }
 
   if (request.freelancer_id !== user.id) {
@@ -110,6 +110,70 @@ export async function acceptRequest(requestId: string) {
   revalidatePath('/freelancer/requests')
   revalidatePath('/freelancer/dashboard')
   return { success: true, workspaceId: workspace.id }
+}
+
+export async function requestInfo(requestId: string, message: string) {
+  const supabase = createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  if (!message.trim()) {
+    throw new Error('Please provide a message explaining what info you need')
+  }
+
+  // 1. Get the project request
+  const { data: request, error: requestError } = await supabase
+    .from('project_requests')
+    .select('*')
+    .eq('id', requestId)
+    .single()
+
+  if (requestError || !request) {
+    console.error('Request fetch error:', requestError)
+    throw new Error('Project request not found')
+  }
+
+  if (request.status !== 'pending' && request.status !== 'info_needed') {
+    throw new Error('Can only request info on pending or info_needed requests')
+  }
+
+  if (request.freelancer_id !== user.id) {
+    throw new Error('You can only act on requests assigned to you')
+  }
+
+  // 2. Update request status to info_needed
+  const { error: updateError } = await supabase
+    .from('project_requests')
+    .update({
+      status: 'info_needed',
+      responded_at: new Date().toISOString()
+    })
+    .eq('id', requestId)
+
+  if (updateError) {
+    console.error('Error updating request:', updateError)
+    throw new Error('Failed to update request status')
+  }
+
+  // 3. Create notification for client
+  try {
+    await supabase
+      .from('notifications')
+      .insert({
+        user_id: request.client_id,
+        type: 'request_info_needed',
+        title: 'Additional Information Needed',
+        body: `The freelancer reviewing your project "${request.form_data?.project_name}" has a question: ${message}`,
+        data: { request_id: requestId, message }
+      })
+  } catch (notifError) {
+    console.error('Notification error (non-critical):', notifError)
+  }
+
+  revalidatePath('/freelancer/requests')
+  revalidatePath('/freelancer/dashboard')
+  return { success: true }
 }
 
 export async function rejectRequest(requestId: string, message: string = '') {

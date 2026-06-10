@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { IconFileInvoice, IconArrowRight, IconPlus, IconInbox } from "@tabler/icons-react";
+import MarkPaidButton from "./MarkPaidButton";
 
 export default async function FreelancerInvoices() {
   const supabase = createClient();
@@ -56,10 +57,18 @@ export default async function FreelancerInvoices() {
                     invoice.status === 'draft' ? 'badge-neutral' :
                     invoice.status === 'sent' ? 'badge-info' :
                     invoice.status === 'paid' ? 'badge-success' :
+                    invoice.status === 'viewed' ? 'badge-warning' :
                     'badge-neutral'
                   }`}>
                     {invoice.status}
                   </span>
+                  {(invoice.status === 'sent' || invoice.status === 'viewed') && (
+                    <MarkPaidButton
+                      documentId={invoice.id}
+                      workspaceId={invoice.workspace_id}
+                      currentStatus={invoice.status}
+                    />
+                  )}
                   <Link href={`/workspace/${invoice.workspace_id}`} className="pill-btn-outline text-[12px] px-3 py-1.5">
                     View
                   </Link>

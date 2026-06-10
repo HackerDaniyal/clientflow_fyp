@@ -65,7 +65,7 @@ export default async function WorkspacePage({ params }: { params: { id: string }
     isFreelancerOnWorkspace || (hasEditorMembership && accountRole !== "client");
 
   // Try with comments + sort_order first
-  let tasksResult = await supabase
+  const tasksResult = await supabase
     .from("tasks")
     .select(
       `

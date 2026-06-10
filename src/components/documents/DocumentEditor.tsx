@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import {
   IconX,
   IconDownload,
@@ -11,6 +11,8 @@ import {
   IconTrash,
   IconChevronDown,
   IconChevronRight,
+  IconTemplate,
+  IconLoader2,
 } from "@tabler/icons-react";
 import ProposalTemplate from "./ProposalTemplate";
 import InvoiceTemplate from "./InvoiceTemplate";
@@ -30,6 +32,8 @@ import {
   calcTotal,
 } from "./types";
 import { exportPDF, exportProposalDOC, exportInvoiceDOC, exportContractDOC } from "@/lib/document-export";
+import { saveTemplate, deleteTemplate } from "@/app/workspace/[id]/actions";
+import { createClient } from "@/lib/supabase";
 
 // ── Stable sub-components (defined OUTSIDE to preserve React identity across renders) ──
 const labelCls = "block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1";
@@ -115,6 +119,66 @@ export default function DocumentEditor({ type, workspaceName, clientName, freela
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({ branding: true, general: true, items: true, extras: false, clauses: false });
   const previewRef = useRef<HTMLDivElement>(null);
 
+  // ── Template Library ──
+  const [templates, setTemplates] = useState<Array<{ id: string; name: string; type: string; content: any }>>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      setLoadingTemplates(true);
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('document_templates')
+        .select('id, name, type, content')
+        .eq('type', type)
+        .order('created_at', { ascending: false });
+      setTemplates(data || []);
+      setLoadingTemplates(false);
+    };
+    fetchTemplates();
+  }, [type]);
+
+  const handleLoadTemplate = (tpl: { content: any }) => {
+    const c = tpl.content;
+    if (type === 'proposal') setProposal({ ...defaultProposal, ...(c as ProposalData) });
+    else if (type === 'invoice') setInvoice({ ...defaultInvoice, ...(c as InvoiceData) });
+    else setContract({ ...defaultContract, ...(c as ContractData) });
+    setShowTemplates(false);
+  };
+
+  const handleSaveAsTemplate = async () => {
+    if (!templateName.trim()) return;
+    const content = type === 'proposal' ? proposal : type === 'invoice' ? invoice : contract;
+    try {
+      await saveTemplate(templateName.trim(), type, content);
+      setTemplateName('');
+      setShowSaveTemplate(false);
+      // Refresh templates
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('document_templates')
+        .select('id, name, type, content')
+        .eq('type', type)
+        .order('created_at', { ascending: false });
+      setTemplates(data || []);
+    } catch {
+      alert('Failed to save template');
+    }
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    if (!confirm('Delete this template?')) return;
+    try {
+      await deleteTemplate(id);
+      setTemplates(prev => prev.filter(t => t.id !== id));
+    } catch {
+      alert('Failed to delete template');
+    }
+  };
+
   const toggleSection = useCallback((key: string) => setOpenSections((p) => ({ ...p, [key]: !p[key] })), []);
   const openSectionsRef = useRef(openSections);
   openSectionsRef.current = openSections;
@@ -189,10 +253,67 @@ export default function DocumentEditor({ type, workspaceName, clientName, freela
             <h2 className="text-[15px] font-semibold text-gray-800 capitalize">{type} Editor</h2>
             <p className="text-[11px] text-gray-400">Fill in the details, preview on the right</p>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition">
-            <IconX size={18} className="text-gray-400" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setShowTemplates(!showTemplates)}
+              className="flex items-center gap-1 text-[11px] font-medium text-brand-mid hover:bg-brand-surface px-2.5 py-1.5 rounded-lg transition-colors"
+              title="Load Template"
+            >
+              <IconTemplate size={14} />
+              Templates
+            </button>
+            <button
+              onClick={() => setShowSaveTemplate(!showSaveTemplate)}
+              className="flex items-center gap-1 text-[11px] font-medium text-brand-mid hover:bg-brand-surface px-2.5 py-1.5 rounded-lg transition-colors"
+              title="Save as Template"
+            >
+              <IconDeviceFloppy size={14} />
+              Save Template
+            </button>
+            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition">
+              <IconX size={18} className="text-gray-400" />
+            </button>
+          </div>
         </div>
+
+        {/* Template Picker */}
+        {showTemplates && (
+          <div className="px-4 py-3 bg-amber-50 border-b border-amber-100">
+            <p className="text-[11px] font-semibold text-amber-700 mb-2">Saved {type} templates:</p>
+            {loadingTemplates ? (
+              <div className="flex items-center gap-2 text-[12px] text-amber-600"><IconLoader2 size={14} className="animate-spin" /> Loading...</div>
+            ) : templates.length === 0 ? (
+              <p className="text-[12px] text-amber-600">No saved templates yet. Fill in the editor and click "Save Template".</p>
+            ) : (
+              <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                {templates.map(tpl => (
+                  <div key={tpl.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-amber-100">
+                    <button onClick={() => handleLoadTemplate(tpl)} className="text-[12px] font-medium text-brand-dark hover:underline text-left flex-1">{tpl.name}</button>
+                    <button onClick={() => handleDeleteTemplate(tpl.id)} className="p-1 text-red-400 hover:bg-red-50 rounded"><IconTrash size={12} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Save as Template */}
+        {showSaveTemplate && (
+          <div className="px-4 py-3 bg-blue-50 border-b border-blue-100">
+            <p className="text-[11px] font-semibold text-blue-700 mb-2">Save current document as template:</p>
+            <div className="flex gap-2">
+              <input
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="Template name..."
+                className="flex-1 bg-white border border-blue-200 rounded-lg px-3 py-1.5 text-[12px] outline-none focus:border-blue-400"
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveAsTemplate()}
+              />
+              <button onClick={handleSaveAsTemplate} disabled={!templateName.trim()} className="px-3 py-1.5 bg-blue-500 text-white text-[11px] font-medium rounded-lg disabled:opacity-50 hover:bg-blue-600 transition-colors">Save</button>
+              <button onClick={() => { setShowSaveTemplate(false); setTemplateName(''); }} className="px-2 py-1.5 text-blue-500 hover:bg-blue-100 rounded-lg transition-colors"><IconX size={14} /></button>
+            </div>
+          </div>
+        )}
 
         {/* Scrollable Form */}
         <div className="flex-1 overflow-y-auto">

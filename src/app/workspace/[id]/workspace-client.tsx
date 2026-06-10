@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 import { 
   IconLayoutDashboard, 
   IconFiles, 
@@ -41,7 +43,7 @@ import {
 import { createClient } from "@/lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
-import { createTask, toggleTask, updateTask, deleteTask, reorderTasks, addTaskComment, deleteTaskComment, inviteMember, removeMember, changeMemberRole, createDocument, updateDocument, sendDocument, deleteDocument, updateWorkspaceAssets, sendAssetsToFreelancer } from "./actions";
+import { createTask, toggleTask, updateTask, deleteTask, reorderTasks, addTaskComment, deleteTaskComment, inviteMember, removeMember, changeMemberRole, createDocument, updateDocument, sendDocument, deleteDocument, updateWorkspaceAssets, sendAssetsToFreelancer, markAsPaid, acceptProposal, counterOfferProposal } from "./actions";
 import WorkspaceChat, { type ChatMessage } from "@/components/workspace/WorkspaceChat";
 import DocumentEditor from "@/components/documents/DocumentEditor";
 import type { DocumentType } from "@/components/documents/types";
@@ -113,6 +115,8 @@ export default function WorkspaceClient({
   const [editorDocType, setEditorDocType] = useState<DocumentType>('proposal');
   const [viewingDocument, setViewingDocument] = useState<any | null>(null);
   const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null);
+  const [showCounterOffer, setShowCounterOffer] = useState(false);
+  const [counterOfferNotes, setCounterOfferNotes] = useState('');
   const viewPreviewRef = useRef<HTMLDivElement>(null);
   const [workspaceData, setWorkspaceData] = useState(workspace);
 
@@ -324,6 +328,48 @@ export default function WorkspaceClient({
     } catch {
       // Fallback: open in new tab
       window.open(url, '_blank');
+    }
+  };
+
+  // Download all asset files as a single ZIP archive
+  const [zipping, setZipping] = useState(false);
+  const downloadAllAsZip = async () => {
+    setZipping(true);
+    try {
+      const zip = new JSZip();
+      const fetchPromises = mergedAssets.map(async (group) => {
+        const folder = zip.folder(group.label) || zip;
+        const filePromises = group.files.map(async (file, idx) => {
+          if (!file.url) return;
+          try {
+            const response = await fetch(file.url);
+            const blob = await response.blob();
+            // Avoid duplicate file names within the same folder
+            let fileName = file.name || `file-${idx + 1}`;
+            const existingNames = group.files.slice(0, idx).map(f => f.name);
+            if (existingNames.includes(fileName)) {
+              const ext = fileName.lastIndexOf('.') > 0 ? fileName.slice(fileName.lastIndexOf('.')) : '';
+              const base = ext ? fileName.slice(0, -ext.length) : fileName;
+              fileName = `${base}_${idx + 1}${ext}`;
+            }
+            folder.file(fileName, blob);
+          } catch (err) {
+            console.warn(`Failed to fetch ${file.name}:`, err);
+          }
+        });
+        await Promise.all(filePromises);
+      });
+      await Promise.all(fetchPromises);
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const projectName = workspaceData.name?.replace(/[^a-zA-Z0-9_-]/g, '_') || 'project';
+      saveAs(content, `${projectName}_assets.zip`);
+      showToast('ZIP downloaded successfully', 'success');
+    } catch (err) {
+      console.error('ZIP creation failed:', err);
+      showToast('Failed to create ZIP archive', 'error');
+    } finally {
+      setZipping(false);
     }
   };
 
@@ -1058,11 +1104,12 @@ export default function WorkspaceClient({
                     {mergedAssets.reduce((sum, g) => sum + g.files.length, 0)} file{mergedAssets.reduce((sum, g) => sum + g.files.length, 0) !== 1 ? 's' : ''} received
                   </p>
                   <button
-                    onClick={() => { allAssetFiles.forEach(f => f.url && downloadFileAsBlob(f.url, f.name)); }}
-                    className="pill-btn-outline inline-flex items-center gap-2"
+                    onClick={downloadAllAsZip}
+                    disabled={zipping}
+                    className="pill-btn-outline inline-flex items-center gap-2 disabled:opacity-60"
                   >
                     <IconDownload size={16} />
-                    Download All
+                    {zipping ? 'Creating ZIP…' : 'Download All as ZIP'}
                   </button>
                 </div>
 
@@ -1742,6 +1789,18 @@ export default function WorkspaceClient({
                             <IconSend size={16} />
                           </button>
                         )}
+                        {userRole === 'editor' && accountRole !== 'client' && doc.type === 'invoice' && (doc.status === 'sent' || doc.status === 'viewed') && (
+                          <button
+                            onClick={async () => {
+                              await markAsPaid(doc.id, workspaceId);
+                              await fetchDocuments();
+                            }}
+                            className="p-2 hover:bg-green-100 text-green-600 rounded-lg transition-colors"
+                            title="Mark as Paid"
+                          >
+                            <IconCheck size={16} />
+                          </button>
+                        )}
                         {userRole === 'editor' && accountRole !== 'client' && (
                           <button
                             onClick={() => {
@@ -2016,10 +2075,82 @@ export default function WorkspaceClient({
                 </div>
               )}
             </div>
+
+            {/* Client Proposal Actions */}
+            {accountRole === 'client' && viewingDocument.type === 'proposal' && (viewingDocument.status === 'sent' || viewingDocument.status === 'viewed') && viewingDocument.status !== 'approved' && (
+              <div className="border-t border-brand-light/30 p-6 bg-brand-surface/30 space-y-4">
+                {viewingDocument.content?.counterOfferNotes && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <p className="text-[12px] font-medium text-amber-700 mb-1">Your Counter Offer Notes:</p>
+                    <p className="text-[13px] text-amber-800 whitespace-pre-wrap">{viewingDocument.content.counterOfferNotes}</p>
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await acceptProposal(viewingDocument.id, workspaceId);
+                        setViewingDocument(null);
+                        showToast('Proposal accepted! Workspace is now In Progress.', 'success');
+                        await fetchDocuments();
+                      } catch {
+                        showToast('Failed to accept proposal', 'error');
+                      }
+                    }}
+                    className="flex-1 pill-btn bg-brand-mid hover:bg-brand-green text-white"
+                  >
+                    <IconCheck size={18} />
+                    Accept Proposal
+                  </button>
+                  <button
+                    onClick={() => setShowCounterOffer(true)}
+                    className="flex-1 pill-btn-outline bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+                  >
+                    <IconMessageCircle size={16} />
+                    Counter Offer
+                  </button>
+                </div>
+                {showCounterOffer && (
+                  <div className="space-y-3">
+                    <textarea
+                      value={counterOfferNotes}
+                      onChange={(e) => setCounterOfferNotes(e.target.value)}
+                      placeholder="Describe your counter offer — what would you like changed?"
+                      rows={4}
+                      className="w-full bg-white border border-brand-light rounded-lg px-4 py-2.5 text-[13px] outline-none focus:border-brand-accent resize-none"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await counterOfferProposal(viewingDocument.id, workspaceId, counterOfferNotes);
+                            setShowCounterOffer(false);
+                            setCounterOfferNotes('');
+                            showToast('Counter offer sent to freelancer', 'success');
+                            await fetchDocuments();
+                          } catch {
+                            showToast('Failed to send counter offer', 'error');
+                          }
+                        }}
+                        disabled={!counterOfferNotes.trim()}
+                        className="pill-btn bg-amber-500 text-white disabled:opacity-50"
+                      >
+                        Send Counter Offer
+                      </button>
+                      <button
+                        onClick={() => { setShowCounterOffer(false); setCounterOfferNotes(''); }}
+                        className="pill-btn-outline"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
-
       {/* Document Editor Modal */}
       {showDocEditor && accountRole !== 'client' && (
         <DocumentEditor

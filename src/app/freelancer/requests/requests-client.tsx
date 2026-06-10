@@ -1,42 +1,118 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useEffect, useCallback, useTransition } from "react";
 import Link from "next/link";
 import {
   IconInbox,
   IconCheck,
   IconX,
   IconEye,
+  IconMessageCircle,
 } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
-import { acceptRequest, rejectRequest } from "./actions";
-import { RequestDetailModal, RejectModal } from "./request-modals";
+import { createClient } from "@/lib/supabase";
+import { acceptRequest, rejectRequest, requestInfo } from "./actions";
+import { RequestDetailModal, RejectModal, RequestInfoModal } from "./request-modals";
 import type { ProjectRequestRow } from "./types";
 
-type FilterStatus = "all" | "pending" | "accepted" | "rejected";
+type FilterStatus = "all" | "pending" | "accepted" | "rejected" | "info_needed";
 
 interface RequestsClientProps {
   requests: ProjectRequestRow[];
   fetchError: string | null;
   initialFilter: FilterStatus;
+  freelancerId: string;
 }
 
 export default function RequestsClient({
   requests: initialRequests,
   fetchError,
   initialFilter,
+  freelancerId,
 }: RequestsClientProps) {
   const [requests, setRequests] = useState(initialRequests);
-  const [filter] = useState<FilterStatus>(initialFilter);
+  const [filter, setFilter] = useState<FilterStatus>(initialFilter);
   const [selectedRequest, setSelectedRequest] = useState<ProjectRequestRow | null>(null);
   const [rejectMessage, setRejectMessage] = useState("");
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [infoMessage, setInfoMessage] = useState("");
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const [actionMessage, setActionMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const supabase = createClient();
+
+  // Sync initial requests when prop changes (after server revalidation)
+  useEffect(() => {
+    setRequests(initialRequests);
+  }, [initialRequests]);
+
+  // Sync filter from URL
+  useEffect(() => {
+    setFilter(initialFilter);
+  }, [initialFilter]);
+
+  // Fetch requests for realtime refresh
+  const fetchRequests = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("project_requests")
+      .select(
+        `
+        *,
+        client:profiles!project_requests_client_id_fkey(full_name)
+      `
+      )
+      .eq("freelancer_id", freelancerId)
+      .order("submitted_at", { ascending: false });
+
+    if (!error && data) {
+      const mapped: ProjectRequestRow[] = data.map((row: Record<string, unknown>) => {
+        const client = row.client as
+          | { full_name: string | null }
+          | { full_name: string | null }[]
+          | null;
+        const clientObj = Array.isArray(client) ? client[0] ?? null : client;
+        return {
+          id: row.id as string,
+          client_id: row.client_id as string,
+          freelancer_id: row.freelancer_id as string,
+          status: row.status as string,
+          form_data: row.form_data as ProjectRequestRow["form_data"],
+          submitted_at: row.submitted_at as string,
+          responded_at: (row.responded_at as string) || null,
+          client: clientObj,
+        };
+      });
+      setRequests(mapped);
+    }
+  }, [supabase, freelancerId]);
+
+  // Realtime subscription for project_requests
+  useEffect(() => {
+    const channel = supabase
+      .channel("project-requests-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "project_requests",
+          filter: `freelancer_id=eq.${freelancerId}`,
+        },
+        () => {
+          fetchRequests();
+          router.refresh();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, freelancerId, fetchRequests, router]);
 
   const filtered =
     filter === "all" ? requests : requests.filter((r) => r.status === filter);
@@ -83,6 +159,28 @@ export default function RequestsClient({
     });
   };
 
+  const handleRequestInfo = () => {
+    if (!selectedRequest || !infoMessage.trim()) return;
+    startTransition(async () => {
+      try {
+        await requestInfo(selectedRequest.id, infoMessage);
+        setRequests((prev) =>
+          prev.map((r) =>
+            r.id === selectedRequest.id ? { ...r, status: "info_needed" } : r
+          )
+        );
+        setSelectedRequest(null);
+        setShowInfoModal(false);
+        setInfoMessage("");
+        setActionMessage({ type: "success", text: "Info request sent to client." });
+        router.refresh();
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        setActionMessage({ type: "error", text: `Failed to send: ${message}` });
+      }
+    });
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
@@ -91,9 +189,18 @@ export default function RequestsClient({
         return <span className="badge badge-success">Accepted</span>;
       case "rejected":
         return <span className="badge badge-danger">Rejected</span>;
+      case "info_needed":
+        return <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-[11px] font-medium">Info Requested</span>;
       default:
         return null;
     }
+  };
+
+  const filterTabs: FilterStatus[] = ["all", "pending", "accepted", "rejected", "info_needed"];
+  const filterLabel = (s: FilterStatus) => {
+    if (s === "all") return "All";
+    if (s === "info_needed") return "Info Needed";
+    return s.charAt(0).toUpperCase() + s.slice(1);
   };
 
   return (
@@ -131,7 +238,7 @@ export default function RequestsClient({
       )}
 
       <div className="flex flex-wrap gap-2">
-        {(["all", "pending", "accepted", "rejected"] as FilterStatus[]).map((s) => (
+        {filterTabs.map((s) => (
           <Link
             key={s}
             href={s === "all" ? "/freelancer/requests" : `/freelancer/requests?status=${s}`}
@@ -141,7 +248,7 @@ export default function RequestsClient({
                 : "bg-brand-surface text-text-secondary hover:bg-brand-tint"
             }`}
           >
-            {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+            {filterLabel(s)}
             {s !== "all" && (
               <span className="ml-1 opacity-70">
                 ({requests.filter((r) => r.status === s).length})
@@ -185,7 +292,7 @@ export default function RequestsClient({
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  {request.status === "pending" && (
+                  {(request.status === "pending" || request.status === "info_needed") && (
                     <>
                       <button
                         type="button"
@@ -208,6 +315,18 @@ export default function RequestsClient({
                         type="button"
                         onClick={() => {
                           setSelectedRequest(request);
+                          setShowInfoModal(true);
+                        }}
+                        disabled={isPending}
+                        className="pill-btn bg-amber-500 hover:bg-amber-600 text-white text-[12px] px-3 py-1.5 disabled:opacity-50"
+                      >
+                        <IconMessageCircle size={16} />
+                        Info
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedRequest(request);
                           setShowRejectModal(true);
                         }}
                         disabled={isPending}
@@ -218,6 +337,9 @@ export default function RequestsClient({
                       </button>
                     </>
                   )}
+                  {request.status === "accepted" && (
+                    <span className="text-[11px] text-text-tertiary">Workspace created</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -225,7 +347,7 @@ export default function RequestsClient({
         </div>
       )}
 
-      {selectedRequest && !showRejectModal && (
+      {selectedRequest && !showRejectModal && !showInfoModal && (
         <RequestDetailModal
           request={selectedRequest}
           clientName={clientName(selectedRequest)}
@@ -233,6 +355,7 @@ export default function RequestsClient({
           onClose={() => setSelectedRequest(null)}
           onAccept={() => handleAccept(selectedRequest.id)}
           onReject={() => setShowRejectModal(true)}
+          onRequestInfo={() => setShowInfoModal(true)}
         />
       )}
 
@@ -246,6 +369,19 @@ export default function RequestsClient({
             setRejectMessage("");
           }}
           onConfirm={handleReject}
+        />
+      )}
+
+      {showInfoModal && selectedRequest && (
+        <RequestInfoModal
+          infoMessage={infoMessage}
+          isPending={isPending}
+          onChangeMessage={setInfoMessage}
+          onCancel={() => {
+            setShowInfoModal(false);
+            setInfoMessage("");
+          }}
+          onConfirm={handleRequestInfo}
         />
       )}
     </div>
