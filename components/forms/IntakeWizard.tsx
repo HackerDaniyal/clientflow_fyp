@@ -17,7 +17,7 @@ const step1 = z.object({
   description: z.string().optional(),
   budget_min: z.coerce.number().optional(),
   budget_max: z.coerce.number().optional(),
-  currency: z.string().default("USD"),
+  currency: z.string(),
   deadline: z.string().optional(),
 });
 
